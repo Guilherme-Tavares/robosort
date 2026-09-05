@@ -1,0 +1,4 @@
+# pygame-ce no lugar do pygame: em Python 3.14 o pygame ainda nao publica
+# wheel e tenta compilar do fonte. A API e a mesma.
+pygame-ce>=2.5
+pyserial>=3.5
