@@ -24,11 +24,14 @@ BASE = "base"
 HEIGHT = "altura"
 REACH = "alcance"
 GRIPPER = "garra"
+JOINTS = (BASE, HEIGHT, REACH, GRIPPER)
 
 # ">> altura em 93"  (movimento concluido)
 ACK_MOVED = re.compile(r">>\s+(\w+)\s+em\s+(-?\d+)")
 # ">> altura energizada em 91"  (primeira energizacao)
 ACK_LIVE = re.compile(r">>\s+(\w+)\s+energizada em\s+(-?\d+)")
+# "base   98   declarada   18..178"  (linha de junta do 'dump')
+DUMP_ROW = re.compile(r"(\w+)\s+(\?|-?\d+)\s+\S+\s+(\?|-?\d+)\.\.(\?|-?\d+)$")
 
 
 class ArmError(RuntimeError):
@@ -76,8 +79,17 @@ class ArmLink:
         print(f"  porta: {port}")
 
         # Espera o reset e descarta o menu de ajuda que o firmware imprime.
+        # Se o PCA9685 nao respondeu no boot, o aviso vem junto: melhor
+        # falhar aqui do que no primeiro 'mv', ao apertar Options.
         time.sleep(BOOT_WAIT)
-        self.drain()
+        banner = self.drain()
+        for line in banner:
+            if line.startswith("!!") and "PCA9685" in line:
+                self.close()
+                raise ArmError(
+                    "firmware sem PCA9685: confira SDA/SCL (A4/A5), VCC do "
+                    "modulo e GND comum, e reconecte."
+                )
 
     def close(self):
         if self.serial and self.serial.is_open:
@@ -99,12 +111,15 @@ class ArmLink:
         return raw.decode("ascii", errors="replace").strip()
 
     def drain(self, window=0.3):
-        """Consome o que estiver pendente na serial."""
+        """Consome o que estiver pendente na serial e devolve as linhas."""
+        lines = []
         deadline = time.monotonic() + window
         while time.monotonic() < deadline:
             line = self._readline()
             if line:
+                lines.append(line)
                 deadline = time.monotonic() + window
+        return lines
 
     # ---------------------------------------------------------- comandos
 
@@ -112,6 +127,32 @@ class ArmLink:
         """Declara as quatro juntas nos centros. Nao energiza, nao move."""
         self._write("home")
         self.drain()
+
+    def read_config(self):
+        """Le centros e limites do firmware. Devolve {junta: (centro, min, max)}.
+
+        A tabela de calibracao vive no sketch; aqui nao ha copia. 'home'
+        declara os centros e 'dump' os mostra junto com os limites.
+        """
+        self.home()
+        self._write("dump")
+        config = {}
+        for line in self.drain():
+            row = DUMP_ROW.match(line)
+            if not row:
+                continue
+            joint, center, low, high = row.groups()
+            if "?" in (center, low, high):
+                raise ArmError(
+                    f"firmware sem centro ou limites para '{joint}'; "
+                    "preencha centers/knownMin/knownMax no sketch."
+                )
+            config[joint] = (int(center), int(low), int(high))
+
+        missing = [j for j in JOINTS if j not in config]
+        if missing:
+            raise ArmError(f"'dump' nao trouxe: {', '.join(missing)}")
+        return config
 
     def release_all(self):
         self._write("offall")

@@ -45,8 +45,9 @@ inteiro sem energizar nada.
 | Analógico direito, eixo Y | altura: cima aumenta, baixo diminui |
 | R1 + analógico direito | alcance: baixo aumenta, cima diminui |
 | L1 (segurando) | precisão: passo de 1 grau, 200 ms entre comandos |
-| Quadrado | alterna a garra entre 88 e 96 |
-| Triângulo | garra volta a 92, apenas se estiver em 96 |
+| L2 (segurando) | desativa os limites calibrados; vale só a faixa 0-180 |
+| Quadrado | alterna a garra entre o mínimo (aberta) e o máximo (fechada) |
+| Triângulo | garra volta ao centro, apenas se estiver no máximo |
 
 Sem L1, o passo é de 2 graus e a cadência acompanha a confirmação do firmware
 (~64 ms por passo, ~30 graus/s). O clamp para exatamente no limite: se faltar
@@ -58,23 +59,33 @@ espelha o mesmo cálculo.
 
 ## Antes de apertar Options
 
-**O braço precisa estar fisicamente nas posições iniciais** (base 98,
-altura 91, alcance 116, garra 92). Energizar um servo o puxa à força até o
-ângulo declarado, sem interpolação. Braço longe do centro significa solavanco
-em cada junta.
+**O braço precisa estar fisicamente nas posições iniciais.** O script as
+imprime ao conectar; são os centros que o firmware declara em `home`.
+Energizar um servo o puxa à força até o ângulo declarado, sem interpolação.
+Braço longe do centro significa solavanco em cada junta.
 
 ## Limites
 
-| Junta | Mín | Máx |
-|---|---|---|
-| Base | 18 | 178 |
-| Altura | 16 | 136 |
-| Alcance | 56 | 176 |
-| Garra | 88, 92, 96 | |
+Centros e limites **não ficam neste script**: ele os lê do firmware ao
+conectar, com `home` seguido de `dump`. A tabela de calibração vive apenas
+no bloco *limites calibrados* do sketch; editar lá e regravar basta.
 
-São os valores medidos na calibração, sem margem adicional.
+Se o `dump` trouxer `?` em algum centro ou limite, a conexão é recusada com
+a mensagem correspondente. O modo seco (`--dry-run`) usa uma tabela fictícia
+própria, que não precisa acompanhar o sketch.
 
-Dois pontos que o script **não** protege:
+O clamp usa os limites tal como vêm, sem margem adicional.
+
+**L2 segurado desativa o clamp** e deixa valer só a faixa 0-180 do firmware,
+que avisa (`~~`) mas obedece. É o caminho para refinar um limite pelo
+controle: com L1 + L2, um grau por vez até a resistência. O script anuncia a
+transição no terminal (`LIMITES DESATIVADOS (L2)` / `limites ativos`), porque
+com `--quiet` o aviso do firmware não aparece.
+
+Ao soltar L2 com a junta fora do limite, o próximo passo naquela junta volta
+direto ao limite, em qualquer direção; não há passo a passo de retorno.
+
+Dois pontos que o script **não** protege, nem com L2 solto:
 
 - **O acoplamento altura↔alcance** não é validado. Cada junta é conferida
   isoladamente, e combinações que forcem o braço continuam alcançáveis.
@@ -98,7 +109,7 @@ Os índices mudam entre USB e Bluetooth. Trocando de conexão, rode
 ## Arquivos
 
 ```
-arm.py             camada serial: protocolo do firmware e espera de confirmação
+arm.py             camada serial: protocolo do firmware, leitura da calibração e espera de confirmação
 main.py            orquestrador: lê o controle e emite comandos
 diag.py            diagnóstico de mapeamento (não fala com o Arduino)
 requirements.txt   dependências

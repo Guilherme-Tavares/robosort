@@ -16,8 +16,12 @@ Controles:
     Analogico dir (Y)  altura: cima aumenta, baixo diminui
     R1 + analog dir    alcance: baixo aumenta, cima diminui
     L1 (segurando)     modo de precisao: passo de 1 grau, 200 ms entre comandos
-    Quadrado           alterna a garra entre 88 e 96
-    Triangulo          garra volta a 92, somente se estiver em 96
+    L2 (segurando)     desativa os limites calibrados; vale so a faixa 0-180
+    Quadrado           alterna a garra entre o minimo e o maximo calibrados
+    Triangulo          garra volta ao centro, somente se estiver no maximo
+
+Centros e limites vem do firmware na conexao ('home' + 'dump'); a tabela de
+calibracao vive so no sketch.
 """
 
 import argparse
@@ -36,6 +40,7 @@ from arm import ArmLink, ArmError, BASE, HEIGHT, REACH, GRIPPER
 
 AXIS_LEFT_X = 0
 AXIS_RIGHT_Y = 3
+AXIS_L2 = 4
 AXIS_R2 = 5
 
 BTN_SQUARE = 2
@@ -48,25 +53,16 @@ BTN_R1 = 10
 # e sempre o mesmo, o analogico so diz a direcao.
 DEADZONE = 0.5
 
-# R2 repousa em -1.0 e vai a +1.0 quando pressionado.
-R2_HELD = 0.0
+# Os gatilhos repousam em -1.0 e vao a +1.0 quando pressionados.
+TRIGGER_HELD = 0.0
 
-# ------------------------------------------------------------------ limites
+# Faixa que o firmware aceita. Vale quando L2 desativa os limites calibrados.
+HARD_RANGE = (0, 180)
 
-LIMITS = {
-    BASE: (18, 178),
-    HEIGHT: (16, 136),
-    REACH: (56, 176),
-}
-
-START_POSE = {BASE: 98, HEIGHT: 91, REACH: 116, GRIPPER: 92}
+# ---------------------------------------------------------------- operacao
 
 # Ordem de energizacao e pausa apos cada junta.
 HOMING = [(BASE, 1.0), (HEIGHT, 1.0), (REACH, 1.0), (GRIPPER, 3.0)]
-
-GRIPPER_OPEN = 88
-GRIPPER_SHUT = 96
-GRIPPER_REST = 92
 
 STEP_NORMAL = 2
 STEP_FINE = 1
@@ -89,12 +85,25 @@ POLL = 0.02
 class DryLink:
     """Substitui o ArmLink quando se roda sem o Arduino."""
 
+    # Sem firmware para consultar, o modo seco precisa de uma tabela propria
+    # para exercitar o clamp. Nao precisa acompanhar o sketch: e um cenario.
+    CONFIG = {
+        BASE: (98, 18, 178),
+        HEIGHT: (91, 16, 136),
+        REACH: (116, 56, 176),
+        GRIPPER: (90, 84, 91),
+    }
+
     def __enter__(self):
         print("  MODO SECO: nenhum comando chega ao Arduino.")
         return self
 
     def __exit__(self, *exc):
         pass
+
+    def read_config(self):
+        print("  -> home / dump  (tabela ficticia do modo seco)")
+        return dict(self.CONFIG)
 
     def home(self):
         print("  -> home")
@@ -108,13 +117,21 @@ class DryLink:
 
 
 class Session:
-    def __init__(self, link, joystick):
+    def __init__(self, link, joystick, config):
         self.link = link
         self.joy = joystick
-        self.angles = dict(START_POSE)
+
+        # config: {junta: (centro, min, max)}, lido do firmware.
+        self.start_pose = {j: c for j, (c, _, _) in config.items()}
+        self.limits = {j: (lo, hi) for j, (_, lo, hi) in config.items()}
+        # Garra: minimo abre, maximo fecha, centro alivia sem abrir.
+        self.gripper_rest, self.gripper_open, self.gripper_shut = config[GRIPPER]
+
+        self.angles = dict(self.start_pose)
         self.live = False               # servos energizados
-        self.next_gripper = GRIPPER_OPEN
+        self.next_gripper = self.gripper_open
         self.pending_gripper = None
+        self.limits_off = False         # L2 segurado
         self.next_command_at = 0.0
         self.turn = 0                   # rodizio entre analogicos
         self.prev_buttons = {}
@@ -132,7 +149,10 @@ class Session:
         return bool(self.joy.get_button(index))
 
     def r2_held(self):
-        return self.joy.get_axis(AXIS_R2) > R2_HELD
+        return self.joy.get_axis(AXIS_R2) > TRIGGER_HELD
+
+    def l2_held(self):
+        return self.joy.get_axis(AXIS_L2) > TRIGGER_HELD
 
     def send(self, joint, angle, expect_motion=True):
         try:
@@ -147,18 +167,19 @@ class Session:
     def start(self):
         print()
         print("  Confirme que o braco esta nas posicoes iniciais:")
-        print("    base 98   altura 91   alcance 116   garra 92")
+        print("   " + "".join(f"  {j} {a}" for j, a in self.start_pose.items()))
         print("  Energizar uma junta a puxa a forca ate o angulo declarado.")
         print()
 
         # 'home' declara as quatro juntas nos centros; sem isso o firmware
-        # recusa 'mv' por nao saber onde elas estao.
+        # recusa 'mv' por nao saber onde elas estao. Ja foi feito ao ler a
+        # configuracao, mas repetir custa nada e cobre um reset no intervalo.
         self.link.home()
 
         for joint, pause in HOMING:
             # O destino e igual ao declarado por 'home', entao o firmware
             # energiza sem deslocamento e nao sinaliza fim de movimento.
-            if not self.send(joint, START_POSE[joint], expect_motion=False):
+            if not self.send(joint, self.start_pose[joint], expect_motion=False):
                 print("  !! falha na energizacao; abortando")
                 return False
             time.sleep(pause)
@@ -185,15 +206,16 @@ class Session:
         if self.pressed(BTN_SQUARE):
             target = self.next_gripper
             self.next_gripper = (
-                GRIPPER_SHUT if target == GRIPPER_OPEN else GRIPPER_OPEN
+                self.gripper_shut if target == self.gripper_open
+                else self.gripper_open
             )
             return target
 
         if self.pressed(BTN_TRIANGLE):
             # So tem efeito com a garra fechada; alivia a pressao sem abrir.
-            if self.angles[GRIPPER] == GRIPPER_SHUT:
-                self.next_gripper = GRIPPER_OPEN
-                return GRIPPER_REST
+            if self.angles[GRIPPER] == self.gripper_shut:
+                self.next_gripper = self.gripper_open
+                return self.gripper_rest
         return None
 
     def jog_request(self):
@@ -224,8 +246,13 @@ class Session:
         return wanted[self.turn % len(wanted)]
 
     def clamp(self, joint, delta):
-        """Aplica o passo parando exatamente no limite."""
-        low, high = LIMITS[joint]
+        """Aplica o passo parando exatamente no limite.
+
+        Com L2 segurado o limite calibrado e ignorado e vale so a faixa do
+        firmware, que por sua vez avisa ('~~') mas obedece. E o caminho para
+        refinar um limite pelo controle, e tambem para passar de um.
+        """
+        low, high = HARD_RANGE if self.l2_held() else self.limits[joint]
         return max(low, min(high, self.angles[joint] + delta))
 
     def pace(self, sent_at, degrees):
@@ -243,12 +270,21 @@ class Session:
 
     def run(self):
         print("  Options liga os servos.  R2 + Options encerra.")
+        print("  L2 segurado desativa os limites calibrados.")
         print("  Ctrl+C encerra a qualquer momento.")
         print()
 
         while True:
             pygame.event.pump()
             now = time.monotonic()
+
+            # Anuncia a transicao: com --quiet o aviso '~~' do firmware nao
+            # aparece, e o operador precisa saber que esta sem rede.
+            limits_off = self.l2_held()
+            if limits_off != self.limits_off:
+                self.limits_off = limits_off
+                print("  LIMITES DESATIVADOS (L2)" if limits_off
+                      else "  limites ativos")
 
             start_pressed = self.pressed(BTN_OPTIONS)
 
@@ -331,7 +367,8 @@ def main():
 
     try:
         with link:
-            Session(link, joystick).run()
+            config = link.read_config()
+            Session(link, joystick, config).run()
     except ArmError as exc:
         print(f"!! {exc}")
         return 1

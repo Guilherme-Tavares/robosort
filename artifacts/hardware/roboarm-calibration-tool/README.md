@@ -1,7 +1,7 @@
 # calibration-tool
 
 Ferramenta de calibração do braço robótico MDF (kit genérico, 4 servos SG90)
-sobre Arduino Uno R3.
+sobre Arduino Uno R3, com os servos acionados por um PCA9685 via I²C.
 
 Serve para **mapear os limites mecânicos das juntas** e ensaiar o ciclo de
 preensão antes do firmware de produção. É descartável por natureza: o propósito
@@ -19,33 +19,58 @@ funciona sozinho pelo Monitor Serial.
 
 ## Compilar e gravar
 
-Gravado pelo Arduino IDE. Requer a biblioteca **Servo**. Para validar sem
-gravar:
+Gravado pelo Arduino IDE. Requer a biblioteca **Adafruit PWM Servo Driver
+Library** (a `Wire` já vem com o core). Para validar sem gravar:
 
 ```
-arduino-cli lib install Servo
+arduino-cli lib install "Adafruit PWM Servo Driver Library"
 arduino-cli compile --fqbn arduino:avr:uno calibration-tool
 ```
 
 A pasta precisa ter o mesmo nome do `.ino`, exigência do Arduino IDE.
 
-Ocupa ~9,5 KB de flash (29%) e 458 bytes de RAM (22%) no Uno.
+Ocupa ~12,9 KB de flash (40%) e 646 bytes de RAM (31%) no Uno.
 
 ## Monitor Serial
 
 **115200 baud** e terminação de linha em **Newline** (ou "Both NL & CR"). Com
 "No line ending" nenhum comando é processado, porque a linha nunca fecha.
 
-## Pinagem
+## Ligações
 
-| Junta | Pino |
+O Arduino fala com o PCA9685 por I²C: **A4 → SDA**, **A5 → SCL**, endereço
+`0x40` (padrão do módulo, sem jumpers de endereço soldados). O `VCC` do módulo
+vem dos 5 V do Arduino; o `V+` dos servos vem da fonte separada. **GND comum**
+entre Arduino, módulo e fonte.
+
+| Junta | Canal do PCA9685 |
 |---|---|
-| Base | 3 |
-| Altura | 5 |
-| Alcance | 9 |
-| Garra | 11 |
+| Base | 8 |
+| Altura | 12 |
+| Alcance | 0 |
+| Garra | 15 |
 
-Todos digitais com PWM.
+## Largura de pulso e oscilador
+
+O firmware converte ângulo em pulso de **544 a 2400 µs**, os mesmos valores
+padrão da biblioteca `Servo` do Arduino. É isso que mantém válidos os números
+da seção *Resultados da calibração*, medidos com a versão anterior deste
+firmware, que usava `Servo` direto nos pinos do Uno.
+
+A precisão desse pulso depende do oscilador interno do PCA9685, que a
+documentação dá como 25 MHz mas varia por chip; a Adafruit mede algo perto de
+27 MHz, valor adotado em `OSC_FREQ`. **Confira uma vez, com o braço em
+repouso:**
+
+```
+home
+mv b 98          a base não deve se mexer ao energizar
+```
+
+Se houver solavanco, `OSC_FREQ` está errado para este módulo: um chip mais
+lento que o declarado encurta todos os pulsos, e vice-versa. Ajuste, regrave,
+repita. Faça o teste na base, que não tem carga de gravidade e tem batentes
+rígidos nos dois sentidos; na garra um solavanco pode forçar os dedos.
 
 ## Comandos
 
@@ -64,6 +89,10 @@ dump             tabela de todas as juntas
 ```
 
 Juntas por nome ou alias: `base|b`, `garra|g`, `altura|al`, `alcance|ac`.
+
+Prefixos das respostas: `>>` informação, `!!` recusa ou erro, `~~` aviso (o
+comando é executado mesmo assim). O único `~~` hoje é o de movimento além do
+limite registrado.
 
 Durante um movimento em curso só são aceitos `stop`, `off`, `offall`, `dump`,
 `?`, `h`, `+` e `-`. Os demais pedem `stop` antes, porque `sel` e `mv` trocam a
@@ -91,11 +120,18 @@ de assumir um valor e arriscar o salto.
 
 ## Garantias do firmware
 
-1. **Nenhum sinal chega a servo algum até comando explícito.** Conectar o servo
-   fisicamente não o energiza; só o primeiro `mv` chama `attach()`.
-2. **Energização sem salto:** `write()` antes de `attach()`. Sem isso a
-   biblioteca Servo ativa a saída em 90°, movendo a junta antes de qualquer
-   comando. Essa armadilha já danificou servo em bancada.
+1. **Nenhum sinal chega a servo algum até comando explícito.** O `setup()`
+   corta os 16 canais do PCA9685 antes de qualquer outra coisa. Isso é
+   necessário porque um reset do Arduino **não** reseta o PCA9685: sem o
+   corte, os canais continuariam pulsando na última posição enquanto o
+   firmware, recém-reiniciado, os consideraria soltos. Só o primeiro `mv`
+   envia pulso a uma junta.
+2. **Energização sem salto:** o primeiro pulso enviado a um canal já tem a
+   largura do ângulo declarado. No PCA9685 não existe `attach()`; o servo não
+   recebe nada até o primeiro `writeMicroseconds()`, e esse primeiro é na
+   posição correta. (Na versão anterior, com a biblioteca `Servo`, isso
+   exigia `write()` antes de `attach()`; sem essa ordem a saída era ativada
+   em 90°, e a armadilha danificou servo em bancada.)
 3. **Todo movimento é interpolado** com *smoothstep*, nunca `write()` direto.
 4. **Movimento não bloqueante:** o `loop()` continua lendo a serial durante o
    deslocamento, então `stop` age de imediato. A leitura é caractere a
@@ -136,32 +172,50 @@ segura passa a ser apenas o atrito da caixa de redução, que cede sob carga. Um
 junta parada após `off` não está travada, e não se deve confiar nela para
 sustentar o braço.
 
-**Servos nunca no pino 5 V do Arduino.** Alimentação separada, com **GND comum**
-entre fonte, servos e Arduino.
+**Servos nunca no pino 5 V do Arduino.** O `V+` do PCA9685 vem da fonte
+separada, com **GND comum** entre fonte, módulo e Arduino.
+
+**Abrir o Monitor Serial reseta o Arduino e solta todas as juntas.** É o
+`setup()` cortando os canais do PCA9685. O braço cai para onde a gravidade o
+levar, então não abra o monitor com o braço erguido ou segurando algo.
 
 **Sinal de brownout:** serial corrompida ou menu de ajuda reaparecendo sozinho
 indica reset por queda de tensão. Resposta: `offall`.
+
+**PCA9685 ausente:** se o módulo não responder no I²C durante o boot, o
+firmware avisa e bloqueia `mv`. Os demais comandos seguem funcionando, mas
+nenhum servo se move. Conferir SDA/SCL, VCC do módulo e GND comum, e
+reiniciar.
 
 ## Resultados da calibração
 
 Medidos com esta ferramenta, neste braço. São posições confortáveis, já com
 margem, **não** o ponto onde o batente é encontrado.
 
+Os mesmos valores estão no bloco *limites calibrados* no topo do sketch
+(`centers[]`, `knownMin[]`, `knownMax[]`), de onde o firmware os carrega no
+boot. Esta tabela é a cópia legível; o sketch é o que vale. Ao atualizar um,
+atualize o outro.
+
 | Junta | Mín | Centro | Máx | Curso |
 |---|---|---|---|---|
 | Base | 18 | 98 | 178 | −80 / +80 |
 | Altura | 16 | 91 | 136 | −75 / +45 |
 | Alcance | 56 | 116 | 176 | −60 / +60 |
-| Garra | 88 | 92 | 96 | ~8 |
+| Garra | 84 | 90 | 91 | ~7 |
 
 Base e alcance saíram simétricos em torno do centro, indicando horns montados
 alinhados. A altura não: ela desce 75 graus e sobe 45.
 
-**Banda morta da garra.** Abaixo de 88 abre de uma vez, acima de 96 fecha de uma
-vez, e entre 90 e 95 não há efeito algum. É folga mecânica acumulada no trem de
-ligações de MDF, não defeito do servo. Consequência: "fechada segurando a caixa
-sem esmagar" não é alcançável por ângulo; a pressão depende de quanto o servo
-continua forçando após o contato.
+**Banda morta da garra.** Abaixo de 84 abre de uma vez; acima de 91 os dedos
+já se encontraram e o servo passa a forçar; entre 84 e 91 não há efeito
+algum. Ou seja, todo o curso registrado é folga mecânica acumulada no trem de
+ligações de MDF, não defeito do servo. Na prática a garra não tem uma faixa,
+tem três posições: 84 (aberta), 91 (fechada, forçando) e 90, onde o servo
+para de zumbir. Esse 90 é o centro da tabela e existe para aliviar a pressão
+sem abrir; é o que o Triângulo do add-on envia. Consequência: "fechada
+segurando a caixa sem esmagar" não é alcançável por ângulo; a pressão depende
+de quanto o servo continua forçando após o contato.
 
 **Envelope altura↔alcance, incompleto.** Os limites das duas juntas são
 interdependentes: uma dada altura restringe a faixa segura de alcance, e
@@ -178,12 +232,13 @@ enviá-las aos servos.
 
 ## Limitações conhecidas
 
-- **Os limites registrados com `min`/`max` vivem em RAM** e somem no reset ou ao
-  regravar. Rodar `dump` e copiar a saída a cada ponto de medição, não só ao fim
-  da sessão.
+- **Os limites registrados com `min`/`max` vivem em RAM** e voltam aos valores
+  do sketch no reset ou ao regravar. Rodar `dump` e copiar a saída para
+  `knownMin[]`/`knownMax[]` a cada ponto de medição, não só ao fim da sessão.
 - O firmware aceita 0-180 em qualquer junta, **mesmo depois de limites
   registrados**. É deliberado: durante a calibração é preciso poder ultrapassar
-  um limite provisório para refiná-lo.
+  um limite provisório para refiná-lo. Ultrapassar gera o aviso `~~`, mas o
+  movimento acontece.
 - `dump` guarda um par mín/máx por junta, insuficiente para a grade do envelope,
   que precisa de uma tripla por ponto de alcance. O registro da grade é manual.
 - O acoplamento altura↔alcance é invisível ao firmware; cada junta é tratada

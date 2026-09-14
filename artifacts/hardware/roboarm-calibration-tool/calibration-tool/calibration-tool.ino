@@ -1,15 +1,28 @@
-#include <Servo.h>
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
 
-// Calibracao assistida de braco robotico MDF com quatro servos.
-// Firmware descartavel: existe para mapear limites e ensaiar o ciclo de
-// preensao. Varias juntas ficam energizadas ao mesmo tempo; uma delas e a
-// ativa, alvo de + e -. Energizacao sem salto, movimento interpolado e
-// interrompivel a qualquer instante.
+// Calibracao assistida de braco robotico MDF com quatro servos, acionados
+// por um PCA9685 via I2C. Firmware descartavel: existe para mapear limites e
+// ensaiar o ciclo de preensao. Varias juntas ficam energizadas ao mesmo tempo;
+// uma delas e a ativa, alvo de + e -. Energizacao sem salto, movimento
+// interpolado e interrompivel a qualquer instante.
 
-#define BASE_PIN    3
-#define HEIGHT_PIN  5
-#define REACH_PIN   9
-#define GRIPPER_PIN 11
+#define PCA_ADDR    0x40
+#define BASE_CH     8
+#define HEIGHT_CH   12
+#define REACH_CH    0
+#define GRIPPER_CH  15
+
+// Largura de pulso, em microssegundos, para 0 e 180 graus. Sao os valores
+// padrao da biblioteca Servo do Arduino; mante-los e o que faz os angulos
+// calibrados com a versao anterior deste firmware continuarem validos.
+#define PULSE_MIN_US 544
+#define PULSE_MAX_US 2400
+
+// O oscilador interno do PCA9685 e nominalmente 25 MHz, mas varia por chip;
+// a Adafruit mede algo proximo de 27 MHz. Se o primeiro 'mv' para o centro
+// declarado der solavanco, e este valor que esta errado para este modulo.
+#define OSC_FREQ    27000000
 
 #define JOINT_COUNT 4
 #define J_BASE      0
@@ -22,19 +35,29 @@
 
 #define LINE_MAX    32
 
-const char* names[]   = {"base", "garra", "altura", "alcance"};
-const char* alias1[]  = {"b",    "g",     "al",     "ac"};
-const int   pins[]    = {BASE_PIN, GRIPPER_PIN, HEIGHT_PIN, REACH_PIN};
+const char* names[]    = {"base", "garra", "altura", "alcance"};
+const char* alias1[]   = {"b",    "g",     "al",     "ac"};
+const int   channels[] = {BASE_CH, GRIPPER_CH, HEIGHT_CH, REACH_CH};
 
-// Centros medidos em bancada. Usados por 'home' para declarar as juntas de
-// uma vez, quando o braco esta na posicao de repouso.
-const int centers[]   = {98, 92, 91, 116};
+// ------------------------------------------------------ limites calibrados
+// Tabela "Resultados da calibracao" do README, na ordem base, garra, altura,
+// alcance. Sao posicoes confortaveis, com margem; nao o ponto do batente.
+// Apos cada sessao, copie o 'dump' para ca. -1 em min/max = desconhecido.
+//
+// 'home' declara as juntas nos centros. min/max nao bloqueiam movimento (e
+// preciso poder ultrapassar um limite para refina-lo), mas geram aviso '~~'.
+//                          base  garra  altura  alcance
+const int centers[]   = {   98,    90,     91,     116 };
+const int knownMin[]  = {   18,    84,     16,      56 };
+const int knownMax[]  = {  178,    91,    136,     176 };
 
 // Passo do ajuste fino. A garra tem curso util de poucos graus e folga
 // mecanica no meio, entao 2 graus la e grosseiro demais.
 const int stepSize[]  = {2, 1, 2, 2};
 
-Servo servos[JOINT_COUNT];
+Adafruit_PWMServoDriver pwm(PCA_ADDR);
+bool  pcaOk = false;
+
 int   angles[JOINT_COUNT];
 bool  declaredAt[JOINT_COUNT];
 bool  liveAt[JOINT_COUNT];
@@ -58,6 +81,20 @@ unsigned long lastStepAt = 0;
 char lineBuf[LINE_MAX];
 byte lineLen = 0;
 
+// ------------------------------------------------------------------- servos
+
+// Envia o pulso correspondente ao angulo. No PCA9685 nao existe attach(): o
+// primeiro pulso e a propria energizacao, ja na largura pedida. E isso que
+// garante a ausencia de salto.
+void writeAngle(int j, int angle) {
+  pwm.writeMicroseconds(channels[j], map(angle, 0, 180, PULSE_MIN_US, PULSE_MAX_US));
+}
+
+// Corta o pulso do canal. O servo deixa de resistir, como no detach().
+void cutPulse(int j) {
+  pwm.setPin(channels[j], 0);
+}
+
 // ---------------------------------------------------------------- movimento
 
 // Interpolacao smoothstep: 3t^2 - 2t^3. Arranque e chegada suaves.
@@ -67,9 +104,26 @@ int easedAngle(int stepIndex) {
   return moveStart + (int)((moveTarget - moveStart) * eased);
 }
 
+// "min..max" com '?' no que for desconhecido.
+void printLimits(int j) {
+  if (limitMin[j] < 0) Serial.print(F("?")); else Serial.print(limitMin[j]);
+  Serial.print(F(".."));
+  if (limitMax[j] < 0) Serial.print(F("?")); else Serial.print(limitMax[j]);
+}
+
 void startMove(int target) {
   target = constrain(target, 0, 180);
-  if (target == angles[current]) { servos[current].write(target); return; }
+
+  // Aviso, nao recusa. '~~' e um prefixo que o add-on nao trata como erro.
+  bool belowMin = limitMin[current] >= 0 && target < limitMin[current];
+  bool aboveMax = limitMax[current] >= 0 && target > limitMax[current];
+  if (belowMin || aboveMax) {
+    Serial.print(F("~~ ")); Serial.print(names[current]);
+    Serial.print(F(" fora do limite registrado ")); printLimits(current);
+    Serial.println();
+  }
+
+  if (target == angles[current]) { writeAngle(current, target); return; }
 
   moveStart  = angles[current];
   moveTarget = target;
@@ -86,10 +140,10 @@ void updateMove() {
 
   lastStepAt = millis();
   moveStep++;
-  servos[current].write(easedAngle(moveStep));
+  writeAngle(current, easedAngle(moveStep));
 
   if (moveStep >= moveTotal) {
-    servos[current].write(moveTarget);
+    writeAngle(current, moveTarget);
     angles[current] = moveTarget;
     moving = false;
     Serial.print(F(">> ")); Serial.print(names[current]);
@@ -109,7 +163,7 @@ void abortMove() {
 // atrito da reducao, insuficiente sob carga.
 void releaseJoint(int j) {
   if (j == current) abortMove();
-  if (liveAt[j]) servos[j].detach();
+  if (liveAt[j]) cutPulse(j);
   liveAt[j]     = false;
   declaredAt[j] = false;
   Serial.print(F(">> "));
@@ -155,9 +209,7 @@ void printJointLine(int j) {
   else if (declaredAt[j])          Serial.print(F("declarada"));
   else                             Serial.print(F("solta"));
   Serial.print(F("\t"));
-  if (limitMin[j] < 0) Serial.print(F("?")); else Serial.print(limitMin[j]);
-  Serial.print(F(".."));
-  if (limitMax[j] < 0) Serial.print(F("?")); else Serial.print(limitMax[j]);
+  printLimits(j);
   Serial.println();
 }
 
@@ -332,6 +384,7 @@ void handleCommand(char* cmd) {
     int  j = parseJointArg(cmd + 3, &ang, &hasAngle);
     if (j < 0)     { Serial.println(F("!! uso: mv <junta> <ang>")); return; }
     if (!hasAngle) { Serial.println(F("!! falta o angulo; para consultar use 'sel'")); return; }
+    if (!pcaOk)    { Serial.println(F("!! PCA9685 nao respondeu no boot; confira I2C e reinicie")); return; }
 
     if (!liveAt[j] && !declaredAt[j]) {
       Serial.print(F("!! ")); Serial.print(names[j]);
@@ -342,8 +395,7 @@ void handleCommand(char* cmd) {
 
     current = j;
     if (!liveAt[j]) {
-      servos[j].write(angles[j]);        // antes do attach, evita o salto para 90
-      servos[j].attach(pins[j]);
+      writeAngle(j, angles[j]);          // primeiro pulso ja na posicao declarada
       liveAt[j] = true;
       Serial.print(F(">> ")); Serial.print(names[j]);
       Serial.print(F(" energizada em ")); Serial.println(angles[j]);
@@ -377,11 +429,29 @@ void setup() {
     angles[i]     = centers[i];
     declaredAt[i] = false;
     liveAt[i]     = false;
-    limitMin[i]   = -1;
-    limitMax[i]   = -1;
+    limitMin[i]   = knownMin[i];       // 'min'/'max' sobrescrevem em RAM
+    limitMax[i]   = knownMax[i];
   }
+
+  // Um reset do Arduino (inclusive o que abrir o Monitor Serial provoca) nao
+  // reseta o PCA9685: os canais continuariam pulsando na ultima posicao,
+  // com este firmware sem saber disso. Cortar todos os 16 canais aqui e o
+  // que sustenta a garantia de "nenhum sinal ate comando explicito", e
+  // reproduz o comportamento do Servo.h, que soltava tudo no reset.
+  pcaOk = pwm.begin();
+  if (pcaOk) {
+    for (int ch = 0; ch < 16; ch++) pwm.setPin(ch, 0);
+    pwm.setOscillatorFrequency(OSC_FREQ);
+    pwm.setPWMFreq(50);
+  }
+
   help();
-  Serial.println(F("Nenhuma junta energizada. Sistema em repouso."));
+  if (pcaOk) {
+    Serial.println(F("Nenhuma junta energizada. Sistema em repouso."));
+  } else {
+    Serial.println(F("!! PCA9685 NAO RESPONDEU no I2C. Confira SDA/SCL (A4/A5),"));
+    Serial.println(F("   alimentacao VCC do modulo e GND comum. 'mv' esta bloqueado."));
+  }
 }
 
 void loop() {
