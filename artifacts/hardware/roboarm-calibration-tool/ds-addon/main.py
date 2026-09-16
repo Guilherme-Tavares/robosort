@@ -90,8 +90,8 @@ class DryLink:
     CONFIG = {
         BASE: (98, 18, 178),
         HEIGHT: (91, 16, 136),
-        REACH: (116, 56, 176),
-        GRIPPER: (90, 84, 91),
+        REACH: (96, 36, 176),
+        GRIPPER: (86, 81, 91),
     }
 
     def __enter__(self):

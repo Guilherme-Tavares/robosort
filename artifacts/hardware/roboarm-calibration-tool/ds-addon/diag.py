@@ -128,7 +128,7 @@ CHECKS = [
     ("R1  (alterna altura/alcance)",       "button", 10, None),
     ("R2  (usado no encerramento)",        "axis", 5, "positivo"),
     ("Quadrado  (alterna a garra)",        "button", 2,  None),
-    ("Triangulo (garra para 92)",          "button", 3,  None),
+    ("Triangulo (garra para o centro)",    "button", 3,  None),
     ("Options   (faz o papel de START)",   "button", 6,  None),
 ]
 

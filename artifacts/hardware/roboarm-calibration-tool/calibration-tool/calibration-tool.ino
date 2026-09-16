@@ -8,10 +8,10 @@
 // interpolado e interrompivel a qualquer instante.
 
 #define PCA_ADDR    0x40
-#define BASE_CH     8
-#define HEIGHT_CH   12
+#define BASE_CH     1
+#define HEIGHT_CH   5
 #define REACH_CH    0
-#define GRIPPER_CH  15
+#define GRIPPER_CH  4
 
 // Largura de pulso, em microssegundos, para 0 e 180 graus. Sao os valores
 // padrao da biblioteca Servo do Arduino; mante-los e o que faz os angulos
@@ -47,8 +47,8 @@ const int   channels[] = {BASE_CH, GRIPPER_CH, HEIGHT_CH, REACH_CH};
 // 'home' declara as juntas nos centros. min/max nao bloqueiam movimento (e
 // preciso poder ultrapassar um limite para refina-lo), mas geram aviso '~~'.
 //                          base  garra  altura  alcance
-const int centers[]   = {   98,    90,     91,     116 };
-const int knownMin[]  = {   18,    84,     16,      56 };
+const int centers[]   = {   98,    86,     91,     96 };
+const int knownMin[]  = {   18,    81,     16,      36 };
 const int knownMax[]  = {  178,    91,    136,     176 };
 
 // Passo do ajuste fino. A garra tem curso util de poucos graus e folga
@@ -213,9 +213,8 @@ void printJointLine(int j) {
   Serial.println();
 }
 
-// Tabela completa: e daqui que saem as constantes do firmware de producao.
-// Mostrar todas as juntas de uma vez e o que permite registrar a tripla
-// (altura, alcance_min, alcance_max) do envelope de acoplamento.
+// Tabela completa: e daqui que saem as constantes do firmware de producao
+// e e o que o add-on le na conexao para montar centros e limites.
 void dumpAll() {
   Serial.println();
   Serial.println(F("=== juntas ==="));

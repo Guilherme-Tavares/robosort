@@ -45,10 +45,10 @@ entre Arduino, módulo e fonte.
 
 | Junta | Canal do PCA9685 |
 |---|---|
-| Base | 8 |
-| Altura | 12 |
+| Base | 1 |
+| Altura | 5 |
 | Alcance | 0 |
-| Garra | 15 |
+| Garra | 4 |
 
 ## Largura de pulso e oscilador
 
@@ -106,7 +106,7 @@ Com o braço fisicamente nas posições de repouso:
 ```
 home                 declara as quatro de uma vez
 mv al 91             energiza a altura, sem salto
-mv ac 116            energiza o alcance; a altura segue firme
+mv ac 96             energiza o alcance; a altura segue firme
 + + +                ajuste fino até encontrar resistência
 stop
 max                  registra o limite
@@ -201,34 +201,22 @@ atualize o outro.
 |---|---|---|---|---|
 | Base | 18 | 98 | 178 | −80 / +80 |
 | Altura | 16 | 91 | 136 | −75 / +45 |
-| Alcance | 56 | 116 | 176 | −60 / +60 |
-| Garra | 84 | 90 | 91 | ~7 |
+| Alcance | 36 | 96 | 176 | −60 / +80 |
+| Garra | 81 | 86 | 91 | ~10 |
 
-Base e alcance saíram simétricos em torno do centro, indicando horns montados
-alinhados. A altura não: ela desce 75 graus e sobe 45.
+A base saiu simétrica em torno do centro, indicando horn montado alinhado.
+Altura e alcance não: a altura desce 75 graus e sobe 45; o alcance recolhe 60
+e estende 80.
 
-**Banda morta da garra.** Abaixo de 84 abre de uma vez; acima de 91 os dedos
-já se encontraram e o servo passa a forçar; entre 84 e 91 não há efeito
+**Banda morta da garra.** Abaixo de 81 abre de uma vez; acima de 91 os dedos
+já se encontraram e o servo passa a forçar; entre 81 e 91 não há efeito
 algum. Ou seja, todo o curso registrado é folga mecânica acumulada no trem de
 ligações de MDF, não defeito do servo. Na prática a garra não tem uma faixa,
-tem três posições: 84 (aberta), 91 (fechada, forçando) e 90, onde o servo
-para de zumbir. Esse 90 é o centro da tabela e existe para aliviar a pressão
+tem três posições: 81 (aberta), 91 (fechada, forçando) e 86, o ponto de
+alívio. Esse 86 é o centro da tabela e existe para aliviar a pressão
 sem abrir; é o que o Triângulo do add-on envia. Consequência: "fechada
 segurando a caixa sem esmagar" não é alcançável por ângulo; a pressão depende
 de quanto o servo continua forçando após o contato.
-
-**Envelope altura↔alcance, incompleto.** Os limites das duas juntas são
-interdependentes: uma dada altura restringe a faixa segura de alcance, e
-vice-versa. Método adotado: fixar o alcance e mapear a faixa de altura.
-
-| Alcance | Altura mín | Altura máx |
-|---|---|---|
-| 56 (recolhido) | pendente | pendente |
-| 116 (centro) | 16 | 136 |
-| 176 (estendido) | pendente | pendente |
-
-O firmware de produção deve validar combinações contra esse envelope antes de
-enviá-las aos servos.
 
 ## Limitações conhecidas
 
@@ -239,8 +227,6 @@ enviá-las aos servos.
   registrados**. É deliberado: durante a calibração é preciso poder ultrapassar
   um limite provisório para refiná-lo. Ultrapassar gera o aviso `~~`, mas o
   movimento acontece.
-- `dump` guarda um par mín/máx por junta, insuficiente para a grade do envelope,
-  que precisa de uma tripla por ponto de alcance. O registro da grade é manual.
 - O acoplamento altura↔alcance é invisível ao firmware; cada junta é tratada
   isoladamente.
 - **O servo não tem retorno de posição.** Se uma junta não executar o comando,
