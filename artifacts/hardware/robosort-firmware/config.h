@@ -42,16 +42,19 @@
 
 // ---- Limites por junta (calibracao) ----
 //                                           base  garra  altura  alcance
-static const int ARM_MIN[ARM_JOINTS]      = {   18,    81,     16,      36 };
-static const int ARM_MAX[ARM_JOINTS]      = {  178,    91,    136,     176 };
+static const int ARM_MIN[ARM_JOINTS]      = {   18,    82,     16,      36 };
+static const int ARM_MAX[ARM_JOINTS]      = {  178,   120,    136,     176 };
 
 // Centros medidos na calibracao: posicao de repouso do braco. Referencia
 // para as poses abaixo; o firmware nao os usa diretamente.
-static const int ARM_CENTER[ARM_JOINTS]   = {   98,    86,     91,      96 };
+static const int ARM_CENTER[ARM_JOINTS]   = {   98,    82,     91,      96 };
 
-// A garra tem tres posicoes, nao uma faixa: aberta = ARM_MIN, fechada
-// forcando = ARM_MAX, repouso (fechada, sem forcar) = a coluna garra das
-// poses abaixo.
+// Garra: servo de posicao de 180 graus (o original era de rotacao continua,
+// trocado em 2026-09-17). Aberta e fechada sao angulos proprios, nao os
+// limites: qual extremo abre depende da montagem do horn. Repouso = fechada,
+// na coluna garra das poses abaixo.
+#define GRIPPER_OPEN    120
+#define GRIPPER_CLOSED   82
 
 // ---- Poses fixas ----
 // HOME: de onde o ciclo parte e para onde volta. 'home' declara as juntas
@@ -59,8 +62,8 @@ static const int ARM_CENTER[ARM_JOINTS]   = {   98,    86,     91,      96 };
 // DELIVERY: onde a caixinha e solta sobre a esteira; a garra termina em
 // repouso depois de abrir e fechar.
 // Provisoriamente iguais aos centros. Ajustar em bancada.
-static const int ARM_HOME[ARM_JOINTS]     = {   18,    86,     91,      96 };
-static const int ARM_DELIVERY[ARM_JOINTS] = {   90,    86,     132,      60 };
+static const int ARM_HOME[ARM_JOINTS]     = {   18,    82,     91,      96 };
+static const int ARM_DELIVERY[ARM_JOINTS] = {   90,    82,    132,      60 };
 
 // ---- Area de aquisicao: valores-guia por canto ----
 // Base, altura e alcance para pegar a caixinha no centro de cada celula.
@@ -92,11 +95,24 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 #define LINE_MAX      32
 
 // ---- Separacao (condicional) ----
+// O empurrador tem interpolador proprio, independente do braco: na deteccao
+// o firmware o move sozinho, sem esperar o PC nem o Motion. Velocidade do
+// module-tester, validada em bancada: rapida, mas suave no arranque e na
+// chegada, para empurrar a caixinha em vez de lanca-la.
+// Fluxo por caixinha: 'prep' (pre-posicao do sentido decidido) -> 'arm'
+// (sensor armado com o sentido) -> DET -> empurrao -> PUSHED.
 #if ENABLE_SORTING
-  #define PIN_IR_NORTE     2     // pino digital do Uno; A4/A5 sao o I2C
-  #define CH_PUSHER_NORTE  8     // empurradores a partir do canal 8
-  #define PUSHER_NEUTRAL   90    // paleta para cima, passagem livre
-  #define PUSHER_CW        0
-  #define PUSHER_CCW       180
-  #define IR_DEBOUNCE_MS   20    // FC-51: LOW = obstaculo
+  #define PIN_IR_NORTE         2     // pino digital do Uno; A4/A5 sao o I2C
+  #define CH_PUSHER_NORTE      8     // empurradores a partir do canal 8
+  #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
+  #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
+  #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
+  #define PUSHER_SETTLE_MS     200   // da chegada ao PUSHED
+
+  // Posicoes do empurrador. A DEFINIR em bancada; placeholders.
+  #define PUSHER_NEUTRAL     90    // repouso; 'rest' e 'home' levam aqui
+  #define PUSHER_PRE_CW      90    // pre-posicao para empurrar em sentido horario (a principio = neutro)
+  #define PUSHER_PRE_CCW     90    // pre-posicao para anti-horario
+  #define PUSHER_PUSH_CW     30    // empurrao horario
+  #define PUSHER_PUSH_CCW    150   // empurrao anti-horario
 #endif

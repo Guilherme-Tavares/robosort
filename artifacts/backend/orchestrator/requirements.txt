@@ -1,0 +1,5 @@
+pyserial>=3.5
+opencv-contrib-python==5.0.0.93
+numpy==2.5.2
+# esteira LEGO, so com ENABLE_CONVEYOR:
+# ev3_dc

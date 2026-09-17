@@ -36,7 +36,7 @@ arduino-cli compile --fqbn arduino:avr:uno \
   --build-property "build.extra_flags=-DENABLE_SORTING=1" robosort-firmware
 ```
 
-Ocupa ~13,7 KB de flash e 728 bytes de RAM sem separação; ~14,5 KB e 773
+Ocupa ~13,8 KB de flash e 728 bytes de RAM sem separação; ~16,1 KB e 823
 bytes com.
 
 ## Ligações
@@ -66,14 +66,17 @@ regrave.
 |---|---|
 | `ARM_MIN` / `ARM_MAX` | limites por junta, da calibração; movimento fora deles é rejeitado |
 | `ARM_CENTER` | centros da calibração; referência, não usado diretamente |
+| `GRIPPER_OPEN` / `GRIPPER_CLOSED` | ângulos de garra aberta e fechada; **não** são os limites, o sentido depende do horn |
 | `ARM_HOME` | posição inicial: de onde o ciclo parte e para onde volta |
 | `ARM_DELIVERY` | posição de entrega sobre a esteira; a coluna garra é o repouso após soltar |
+| `PUSHER_*` | neutro, pré-posições e posições de empurrão por sentido; velocidade e `PUSHER_SETTLE_MS` |
 | `CORNER_BASE/HEIGHT/REACH` | valores-guia dos quatro cantos da área (`docs/calibration/GUIDE_VALUES.md`) |
 | `APPROACH_HEIGHT/REACH` | altura e alcance de aproximação, comuns aos cantos |
 | `GRIP_CLOSE_DELAY_MS` / `GRIP_HOLD_DELAY_MS` | pausas de 1 s antes e depois de a garra fechar |
 
-A garra tem três posições, não uma faixa: aberta = `ARM_MIN`, fechada forçando
-= `ARM_MAX`, repouso (fechada, sem forçar) = coluna garra das poses.
+A garra é um servo de posição de 180° (o original era de rotação contínua,
+trocado em 2026-09-17). Hoje `GRIPPER_CLOSED` 82 é o mínimo e `GRIPPER_OPEN`
+120 o máximo; repouso = fechada, na coluna garra das poses.
 
 `ARM_HOME` e `ARM_DELIVERY` começam iguais aos centros. Ajuste em bancada.
 
@@ -97,15 +100,18 @@ PC → Arduino
   off [<junta>]        solta a junta, ou a ativa; posição passa a desconhecida
   offall               solta todas (pânico)
   stop                 interrompe o movimento em curso, mantém energizado
-  dump                 STATE de cada junta
+  dump                 STATE de cada junta, depois GRIPPER
   ?                    STATE da junta ativa
   corners              CORNER de cada canto e APPROACH
   ping                 OK
   help / h             ajuda, em linhas '#'
 
   [ENABLE_SORTING]
-  push <zona> <cw|ccw> empurrador ao extremo e de volta ao neutro; OK ao voltar
-  arm <zona>           arma o sensor da zona para uma detecção
+  prep <zona> <cw|ccw> empurrador na pré-posição do sentido; OK ao chegar
+  arm <zona> <cw|ccw>  arma o sensor com o sentido; na detecção o firmware empurra sozinho
+  push <zona> <cw|ccw> empurrão manual; OK ao chegar
+  rest <zona>          empurrador ao neutro; OK ao chegar
+  disarm <zona>        desarma o sensor
 
 Arduino → PC
   READY                fim do setup(); PCA9685 respondeu
@@ -114,8 +120,10 @@ Arduino → PC
   STATE <junta> <ang|?> <solta|declarada|energizada> <min> <max> <home> <delivery>
   CORNER <k> <base> <altura> <alcance>
   APPROACH <altura> <alcance>
+  GRIPPER <aberta> <fechada>
   # <texto>            informação para o operador; o PC ignora
-  DET <zona>           sensor detectou passagem          [assíncrono]
+  DET <zona>           sensor detectou; empurrão já em curso        [assíncrono]
+  PUSHED <zona>        empurrador chegou e assentou (PUSHER_SETTLE_MS) [assíncrono]
 ```
 
 Juntas: `base|b`, `garra|g`, `altura|al`, `alcance|ac`; com separação, também
@@ -124,13 +132,13 @@ Juntas: `base|b`, `garra|g`, `altura|al`, `alcance|ac`; com separação, também
 ### Contrato de respostas
 
 **Cada comando recebe exatamente uma resposta terminal, `OK` ou `ERR`, na
-ordem em que foi enviado.** Linhas `STATE`, `CORNER`, `APPROACH` e `#` que
+ordem em que foi enviado.** Linhas `STATE`, `GRIPPER`, `CORNER`, `APPROACH` e `#` que
 precedem o `OK` pertencem ao mesmo comando. É o que permite ao orquestrador
 parear resposta com comando sem heurística.
 
 - Comandos que movem (`mv` com ângulo, `mv home/dest/area`, `+`, `-`,
-  `push`) respondem **ao concluir** o movimento inteiro, não ao receber o
-  comando. Com firmware não bloqueante, "concluir" é a máquina de estados
+  `prep`, `push`, `rest`) respondem **ao concluir** o movimento inteiro, não
+  ao receber o comando. Com firmware não bloqueante, "concluir" é a máquina de estados
   chegar ao fim, não o retorno de uma função.
 - Com movimento em curso, só `stop`, `off`, `offall` e `ping` são aceitos. O
   resto, inclusive `dump`, recebe `ERR ocupado` de imediato. Sem essa regra,
@@ -139,8 +147,9 @@ parear resposta com comando sem heurística.
 - Um comando que interrompe o movimento (`stop`, `off` na junta em movimento,
   `offall`) faz o comando pendente responder `ERR interrompido` **antes** da
   própria resposta. O PC vê duas linhas, na ordem dos comandos.
-- `DET` é a única linha fora desse fluxo: assíncrona, prefixada, pode chegar
-  entre um comando e sua resposta. O leitor serial do PC roteia por prefixo.
+- `DET` e `PUSHED` são as linhas fora desse fluxo: assíncronas, prefixadas,
+  podem chegar entre um comando e sua resposta. O leitor serial do PC roteia
+  por prefixo.
 
 ### Sequências
 
@@ -156,9 +165,11 @@ delas como no meio de um movimento.
 |---|---|
 | `mv <j> <ang>`, `+`, `-` | um |
 | `mv home` | base, altura, alcance, garra → `ARM_HOME` |
-| `mv dest` | alcance, altura, base → `ARM_DELIVERY`; garra → `ARM_MIN` (abre); **pausa 1 s**; garra → `ARM_MAX` (fecha); **pausa 1 s**; garra → `ARM_DELIVERY` (repousa) |
-| `mv area <k>` | base → `CORNER_BASE[k]`; garra → `ARM_MIN`; altura → `APPROACH_HEIGHT`; alcance → `APPROACH_REACH`; altura → `CORNER_HEIGHT[k]`; alcance → `CORNER_REACH[k]`; **pausa 1 s**; garra → `ARM_MAX`; **pausa 1 s** |
-| `push <zona> <dir>` | empurrador → extremo; empurrador → `PUSHER_NEUTRAL` |
+| `mv dest` | alcance, altura, base → `ARM_DELIVERY`; garra → `GRIPPER_OPEN`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s**; garra → `ARM_DELIVERY` (repousa) |
+| `mv area <k>` | base → `CORNER_BASE[k]`; garra → `GRIPPER_OPEN`; altura → `APPROACH_HEIGHT`; alcance → `APPROACH_REACH`; altura → `CORNER_HEIGHT[k]`; alcance → `CORNER_REACH[k]`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s** |
+
+O empurrador não passa pelo `motion` nem por sequências: tem interpolador
+próprio em `sorting`, com velocidade própria.
 
 As sequências exigem juntas declaradas: `home` ou `dest` antes do primeiro
 `mv home`/`mv dest`/`mv area`, com o braço fisicamente na pose declarada.
@@ -256,19 +267,41 @@ mv ac             mostra o alcance e o torna ativo
 ?                 onde ficou
 ```
 
-## Empurrador
+## Separação: sensor e empurrador
 
-`push` é uma sequência de dois passos: ao extremo (`cw` = `PUSHER_CW`, `ccw`
-= `PUSHER_CCW`) e de volta a `PUSHER_NEUTRAL`. O `OK` sai no fim da volta. O
-empurrador é uma junta comum da tabela, com o nome da zona; `mv norte 90`
-funciona e serve para testar, mas o ciclo usa `push`.
+O empurrador tem **interpolador próprio**, independente do `motion` do
+braço: se move mesmo com o braço no meio de uma sequência. É o que permite
+ao firmware empurrar sozinho na detecção — a zona Norte fica no começo da
+esteira e a caixinha chega ao sensor antes de o braço terminar de voltar a
+HOME.
 
-Na primeira energização, sem `set` prévio, o firmware assume o empurrador no
-neutro, que é seu repouso mecânico. Sem carga, um eventual salto é inofensivo.
+O movimento é *smoothstep* a **4 ms por grau** (`PUSHER_STEP_DELAY_MS`,
+`PUSHER_SUBSTEPS`), a velocidade validada no `module-tester`: rápido o
+bastante para empurrar, suave o bastante para não lançar a caixinha. O braço
+anda a 32 ms por grau.
 
-`arm <zona>` arma o sensor para **uma** detecção: `DET <zona>` sai após
-`IR_DEBOUNCE_MS` de nível baixo contínuo e o sensor desarma. O orquestrador
-rearma quando quiser a próxima.
+Fluxo por caixinha, comandado pelo PC antes de o braço se mover:
+
+```
+prep norte cw      pré-posição do sentido decidido (PUSHER_PRE_CW / _CCW)
+arm norte cw       sensor armado com o sentido
+                   ... braço pega, entrega, volta ...
+DET norte          o firmware começou a mover o empurrador para PUSHER_PUSH_CW / _CCW
+PUSHED norte       chegou e assentou (PUSHER_SETTLE_MS); o PC pode iniciar o próximo ciclo
+```
+
+Uma detecção por `arm`: o sensor desarma ao disparar. Debounce de
+`IR_DEBOUNCE_MS` de nível baixo contínuo. `offall` desarma tudo. O
+empurrador fica na posição de empurrão até o próximo `prep` (ou `rest`).
+
+Constantes em `config.h`, **a definir em bancada**: `PUSHER_NEUTRAL`,
+`PUSHER_PRE_CW`, `PUSHER_PRE_CCW`, `PUSHER_PUSH_CW`, `PUSHER_PUSH_CCW`,
+`PUSHER_SETTLE_MS`. A princípio a pré-posição para `cw` é o neutro.
+
+O empurrador é uma junta comum da tabela, com o nome da zona: `mv norte 90`
+funciona e serve para achar as posições. Na primeira energização não há de
+onde interpolar: o firmware manda um pulso direto para a posição pedida; sem
+carga, um eventual salto é inofensivo.
 
 ## Convenções
 

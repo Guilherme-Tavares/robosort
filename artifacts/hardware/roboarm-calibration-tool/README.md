@@ -132,7 +132,10 @@ de assumir um valor e arriscar o salto.
    posição correta. (Na versão anterior, com a biblioteca `Servo`, isso
    exigia `write()` antes de `attach()`; sem essa ordem a saída era ativada
    em 90°, e a armadilha danificou servo em bancada.)
-3. **Todo movimento é interpolado** com *smoothstep*, nunca `write()` direto.
+3. **Todo movimento é interpolado** com *smoothstep*, nunca `write()` direto,
+   **exceto nas juntas marcadas em `direct[]`**, hoje só a garra: ela precisa
+   fechar de uma vez para morder, e a 30°/s chega sem força útil. As juntas
+   que carregam o braço continuam suaves.
 4. **Movimento não bloqueante:** o `loop()` continua lendo a serial durante o
    deslocamento, então `stop` age de imediato. A leitura é caractere a
    caractere, porque `Serial.readStringUntil()` bloqueia até 1 s e anularia
@@ -202,21 +205,24 @@ atualize o outro.
 | Base | 18 | 98 | 178 | −80 / +80 |
 | Altura | 16 | 91 | 136 | −75 / +45 |
 | Alcance | 36 | 96 | 176 | −60 / +80 |
-| Garra | 81 | 86 | 91 | ~10 |
+| Garra | 82 (fechada) | 82 | 120 (aberta) | 38 |
 
 A base saiu simétrica em torno do centro, indicando horn montado alinhado.
 Altura e alcance não: a altura desce 75 graus e sobe 45; o alcance recolhe 60
 e estende 80.
 
-**Banda morta da garra.** Abaixo de 81 abre de uma vez; acima de 91 os dedos
-já se encontraram e o servo passa a forçar; entre 81 e 91 não há efeito
-algum. Ou seja, todo o curso registrado é folga mecânica acumulada no trem de
-ligações de MDF, não defeito do servo. Na prática a garra não tem uma faixa,
-tem três posições: 81 (aberta), 91 (fechada, forçando) e 86, o ponto de
-alívio. Esse 86 é o centro da tabela e existe para aliviar a pressão
-sem abrir; é o que o Triângulo do add-on envia. Consequência: "fechada
-segurando a caixa sem esmagar" não é alcançável por ângulo; a pressão depende
-de quanto o servo continua forçando após o contato.
+**A garra estava com um servo de rotação contínua.** Descoberto em
+2026-09-17 e trocado por um de 180°. Num servo contínuo o pulso é velocidade,
+não posição: abaixo do ponto de parada gira num sentido, acima gira no outro,
+e em torno dele nada acontece. Era exatamente o que se via — "abre de uma vez",
+"fecha forçando", "sem efeito entre 81 e 91", "para de zumbir em 86". Toda a
+caracterização anterior da garra foi descartada; a linha da tabela acima está
+remedida com o servo novo: **82 fechada, 120 aberta, repouso em 82**. Note o
+sentido: aqui o mínimo fecha e o máximo abre; depende da montagem do horn, e
+por isso o firmware de produção usa constantes próprias (`GRIPPER_OPEN`,
+`GRIPPER_CLOSED`) em vez de inferir dos limites. Para referência, no servo
+contínuo 84 girava no sentido horário e 91 no anti-horário; o ponto de parada
+ficava entre 86 e 90.
 
 ## Limitações conhecidas
 

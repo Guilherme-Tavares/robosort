@@ -28,6 +28,7 @@ Joint table[] = {
   ARM_ROW("altura",  "al", CH_HEIGHT,  J_HEIGHT,  2),
   ARM_ROW("alcance", "ac", CH_REACH,   J_REACH,   2),
 #if ENABLE_SORTING
+  // Empurrador: movido pelo interpolador de Sorting, nao pelo Motion.
   { "norte", nullptr, CH_PUSHER_NORTE, 0, 180, PUSHER_NEUTRAL, PUSHER_NEUTRAL, 2, 0, JS_FREE },
 #endif
 };
@@ -88,6 +89,15 @@ void Joints::energize(int j) {
 }
 
 void Joints::setAngle(int j, int ang) { table[j].angle = ang; }
+
+// Um pulso so, sem interpolacao. Se a junta estava solta, este pulso e a
+// energizacao. Uso: primeira energizacao do empurrador, que nao tem de onde
+// interpolar; sem carga, um eventual salto e inofensivo.
+void Joints::moveDirect(int j, int ang) {
+  pulse(j, ang);
+  table[j].angle = ang;
+  table[j].state = JS_LIVE;
+}
 
 void Joints::release(int j) {
   if (pcaOk && table[j].state == JS_LIVE) pwm.setPin(table[j].channel, 0);

@@ -26,6 +26,7 @@ namespace Joints {
   int         home(int j);
   int         delivery(int j);
   int         stepSize(int j);          // passo de + e -
+  void        moveDirect(int j, int ang); // pulso unico no alvo; energiza se preciso
   int         angle(int j);             // so tem sentido se state != JS_FREE
   JointState  state(int j);
 

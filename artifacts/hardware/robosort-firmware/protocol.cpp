@@ -13,6 +13,9 @@ char line[LINE_MAX];
 byte lineLen = 0;
 
 int active = -1;   // junta que recebe + e -; definida por mv/sel
+#if ENABLE_SORTING
+bool awaitingPusher = false;   // ha um comando do empurrador cujo OK sai quando ele chegar
+#endif
 
 // ------------------------------------------------------------- respostas
 
@@ -76,13 +79,15 @@ void help() {
   Serial.println(F("#   off [<j>]        solta a junta, ou a ativa"));
   Serial.println(F("#   offall           solta todas (panico)"));
   Serial.println(F("#   stop             interrompe o movimento, mantem energizado"));
-  Serial.println(F("#   dump / ?         STATE de todas as juntas / da ativa"));
+  Serial.println(F("#   dump / ?         STATE de todas as juntas (+ GRIPPER aberta fechada) / da ativa"));
   Serial.println(F("#   corners          valores-guia dos cantos e aproximacao"));
   Serial.println(F("#   ping             OK"));
   Serial.println(F("#   help / h         esta ajuda"));
 #if ENABLE_SORTING
-  Serial.println(F("#   push <zona> <cw|ccw>   empurrador ao extremo e de volta ao neutro"));
-  Serial.println(F("#   arm <zona>             arma o sensor da zona para uma deteccao"));
+  Serial.println(F("#   prep <zona> <cw|ccw>   empurrador na pre-posicao do sentido"));
+  Serial.println(F("#   arm <zona> <cw|ccw>    arma o sensor; na deteccao empurra sozinho (DET, PUSHED)"));
+  Serial.println(F("#   push <zona> <cw|ccw>   empurrao manual"));
+  Serial.println(F("#   rest / disarm <zona>   empurrador ao neutro / desarma o sensor"));
 #endif
   Serial.println(F("# juntas: base|b  garra|g  altura|al  alcance|ac"));
   Serial.println(F("# STATE <junta> <ang|?> <estado> <min> <max> <home> <delivery>"));
@@ -116,13 +121,22 @@ char* splitArg(char* s) {
 
 // ----------------------------------------------------------- sequencias
 
-bool busy() { return Sequence::active(); }
+bool busy() {
+#if ENABLE_SORTING
+  if (awaitingPusher) return true;
+#endif
+  return Sequence::active();
+}
 
 // Interrompe o que estiver em curso e responde ao comando que o iniciou.
 void interrupt() {
   if (!busy()) return;
   Motion::abort();
   Sequence::cancel();
+#if ENABLE_SORTING
+  Sorting::abort();
+  awaitingPusher = false;
+#endif
   err(F("interrompido"));
 }
 
@@ -139,7 +153,26 @@ void run(const Sequence::Step* s, int n) {
   }
 }
 
+#if ENABLE_SORTING
+// Depois de um moveTo/prep/push/rest: OK quando o empurrador chegar; se nao
+// houve movimento (ja estava la, ou primeira energizacao direta), OK ja.
+void awaitPusher() {
+  awaitingPusher = Sorting::moving();
+  if (!awaitingPusher) ok();
+}
+#endif
+
 void moveOne(int j, int ang) {
+#if ENABLE_SORTING
+  int z = Sorting::zoneOfJoint(j);
+  if (z >= 0) {
+    if (ang < Joints::minAngle(j) || ang > Joints::maxAngle(j)) { errLimit(j); return; }
+    if (!Joints::ready()) { err(F("pca")); return; }
+    Sorting::moveTo(z, ang);
+    awaitPusher();
+    return;
+  }
+#endif
   Sequence::Step s[] = { { (int8_t)j, (uint16_t)ang } };
   run(s, 1);
 }
@@ -162,9 +195,9 @@ void moveDelivery() {
     { J_REACH,   (uint16_t)Joints::delivery(J_REACH)   },
     { J_HEIGHT,  (uint16_t)Joints::delivery(J_HEIGHT)  },
     { J_BASE,    (uint16_t)Joints::delivery(J_BASE)    },
-    { J_GRIPPER, (uint16_t)Joints::minAngle(J_GRIPPER) },
+    { J_GRIPPER, GRIPPER_OPEN                          },
     { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                    },
-    { J_GRIPPER, (uint16_t)Joints::maxAngle(J_GRIPPER) },
+    { J_GRIPPER, GRIPPER_CLOSED                        },
     { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                     },
     { J_GRIPPER, (uint16_t)Joints::delivery(J_GRIPPER) },
   };
@@ -179,13 +212,13 @@ void moveDelivery() {
 void moveArea(int k) {
   Sequence::Step s[] = {
     { J_BASE,    (uint16_t)CORNER_BASE[k]              },
-    { J_GRIPPER, (uint16_t)Joints::minAngle(J_GRIPPER) },
+    { J_GRIPPER, GRIPPER_OPEN                          },
     { J_HEIGHT,  APPROACH_HEIGHT                      },
     { J_REACH,   APPROACH_REACH                       },
     { J_HEIGHT,  (uint16_t)CORNER_HEIGHT[k]            },
     { J_REACH,   (uint16_t)CORNER_REACH[k]             },
     { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                   },
-    { J_GRIPPER, (uint16_t)Joints::maxAngle(J_GRIPPER) },
+    { J_GRIPPER, GRIPPER_CLOSED                        },
     { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                    },
   };
   run(s, 9);
@@ -211,7 +244,16 @@ void handle(char* cmd) {
   // Aceitos a qualquer momento, inclusive em movimento.
   if (!strcmp(cmd, "ping"))   { ok(); return; }
   if (!strcmp(cmd, "stop"))   { interrupt(); ok(); return; }
-  if (!strcmp(cmd, "offall")) { interrupt(); Joints::releaseAll(); active = -1; ok(); return; }
+  if (!strcmp(cmd, "offall")) {
+    interrupt();
+#if ENABLE_SORTING
+    Sorting::disarmAll();
+#endif
+    Joints::releaseAll();
+    active = -1;
+    ok();
+    return;
+  }
 
   if (!strcmp(cmd, "off") || startsWith(cmd, "off ")) {
     bool named = cmd[3] == ' ';
@@ -233,6 +275,8 @@ void handle(char* cmd) {
 
   if (!strcmp(cmd, "dump")) {
     for (int j = 0; j < Joints::count(); j++) stateLine(j);
+    Serial.print(F("GRIPPER ")); Serial.print(GRIPPER_OPEN);
+    Serial.print(' '); Serial.println(GRIPPER_CLOSED);
     ok();
     return;
   }
@@ -302,33 +346,33 @@ void handle(char* cmd) {
   }
 
 #if ENABLE_SORTING
-  // push <zona> <cw|ccw>: ao extremo e de volta ao neutro. O empurrador
-  // repousa mecanicamente no neutro; sem 'set' previo, e isso que se assume
-  // ao energizar. Sem carga, um eventual salto e inofensivo.
-  if (startsWith(cmd, "push ")) {
-    char* zone = skipSpaces(cmd + 5);
+  // prep/push/rest movem o empurrador pelo interpolador de Sorting e
+  // respondem OK na chegada; arm/disarm respondem na hora. Na deteccao, o
+  // empurrao sai do proprio firmware, mesmo com o braco em movimento; so os
+  // comandos obedecem ao contrato (ERR ocupado durante movimento).
+  if (startsWith(cmd, "prep ") || startsWith(cmd, "push ") || startsWith(cmd, "arm ")) {
+    char* zone = skipSpaces(strchr(cmd, ' ') + 1);
     char* dir  = splitArg(zone);
     int z = Sorting::zoneByName(zone);
     if (z < 0) { err(F("zona")); return; }
-    int extreme;
-    if      (!strcmp(dir, "cw"))  extreme = PUSHER_CW;
-    else if (!strcmp(dir, "ccw")) extreme = PUSHER_CCW;
+    bool cw;
+    if      (!strcmp(dir, "cw"))  cw = true;
+    else if (!strcmp(dir, "ccw")) cw = false;
     else { err(F("sintaxe")); return; }
-    int p = Sorting::pusherJoint(z);
-    if (Joints::state(p) == JS_FREE) Joints::declare(p, PUSHER_NEUTRAL);
-    Sequence::Step s[] = {
-      { (int8_t)p, (uint16_t)extreme        },
-      { (int8_t)p, (uint16_t)PUSHER_NEUTRAL },
-    };
-    run(s, 2);
+    if (cmd[0] == 'a') { Sorting::arm(z, cw); ok(); return; }
+    if (!Joints::ready()) { err(F("pca")); return; }
+    if (cmd[1] == 'r') Sorting::prep(z, cw); else Sorting::push(z, cw);
+    awaitPusher();
     return;
   }
 
-  if (startsWith(cmd, "arm ")) {
-    int z = Sorting::zoneByName(skipSpaces(cmd + 4));
+  if (startsWith(cmd, "rest ") || startsWith(cmd, "disarm ")) {
+    int z = Sorting::zoneByName(skipSpaces(strchr(cmd, ' ') + 1));
     if (z < 0) { err(F("zona")); return; }
-    Sorting::arm(z);
-    ok();
+    if (cmd[0] == 'd') { Sorting::disarm(z); ok(); return; }
+    if (!Joints::ready()) { err(F("pca")); return; }
+    Sorting::rest(z);
+    awaitPusher();
     return;
   }
 #endif
@@ -366,6 +410,9 @@ void Protocol::poll() {
   if (Sequence::update()) ok();
 
 #if ENABLE_SORTING
-  Sorting::pollSensor();
+  if (Sorting::poll() == Sorting::CMD_DONE && awaitingPusher) {
+    awaitingPusher = false;
+    ok();
+  }
 #endif
 }

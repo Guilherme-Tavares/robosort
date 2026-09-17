@@ -47,13 +47,17 @@ const int   channels[] = {BASE_CH, GRIPPER_CH, HEIGHT_CH, REACH_CH};
 // 'home' declara as juntas nos centros. min/max nao bloqueiam movimento (e
 // preciso poder ultrapassar um limite para refina-lo), mas geram aviso '~~'.
 //                          base  garra  altura  alcance
-const int centers[]   = {   98,    86,     91,     96 };
-const int knownMin[]  = {   18,    81,     16,      36 };
-const int knownMax[]  = {  178,    91,    136,     176 };
+const int centers[]   = {   98,    82,     91,     96 };
+const int knownMin[]  = {   18,    82,     16,      36 };
+const int knownMax[]  = {  178,   120,    136,     176 };
 
-// Passo do ajuste fino. A garra tem curso util de poucos graus e folga
-// mecanica no meio, entao 2 graus la e grosseiro demais.
+// Passo do ajuste fino de + e -.
 const int stepSize[]  = {2, 1, 2, 2};
+
+// Juntas que vao direto ao alvo, sem interpolacao. A garra precisa fechar
+// de uma vez para morder: a 30 graus/s o servo chega sem forca util. As
+// demais continuam suaves, porque carregam o braco.
+const bool direct[]   = {false, true, false, false};
 
 Adafruit_PWMServoDriver pwm(PCA_ADDR);
 bool  pcaOk = false;
@@ -124,6 +128,14 @@ void startMove(int target) {
   }
 
   if (target == angles[current]) { writeAngle(current, target); return; }
+
+  if (direct[current]) {                 // um pulso so, na velocidade do servo
+    writeAngle(current, target);
+    angles[current] = target;
+    Serial.print(F(">> ")); Serial.print(names[current]);
+    Serial.print(F(" em ")); Serial.println(target);
+    return;
+  }
 
   moveStart  = angles[current];
   moveTarget = target;
