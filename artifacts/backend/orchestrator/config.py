@@ -9,7 +9,9 @@ conexao ('dump' e 'corners'); fonte unica: robosort-firmware/config.h.
 ENABLE_VISION = True          # camera identifica o marcador da caixinha
 ENABLE_LOCALIZATION = False   # visao localiza a caixinha e interpola o alvo;
                               # desligado: alvo fixo em FIXED_CORNER
-ENABLE_CONVEYOR = False       # esteira LEGO via EV3; desligado: mover a caixinha a mao
+ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a esteira
+                              # sai da jogada e e assumida ligada (brick, outro PC, ou
+                              # a caixinha movida a mao ate o sensor)
 ENABLE_SORTING = True         # sensor IR + empurrador (firmware com ENABLE_SORTING=1)
 
 FIXED_CORNER = 0              # canto usado quando a localizacao esta desligada

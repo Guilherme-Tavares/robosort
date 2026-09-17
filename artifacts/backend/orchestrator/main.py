@@ -16,9 +16,9 @@ Comandos:
     status         esteira, modo, ciclos feitos
     stop           interrompe, volta a HOME, solta o braco e sai
 
---assume-conveyor: sem controle pelo EV3; 'on'/'off' so registram que a
-esteira foi ligada por fora (brick ou outro PC). --no-camera: sem visao;
-so 'cycle N'.
+--assume-conveyor (ou ENABLE_CONVEYOR = False): a esteira sai da jogada e e
+assumida ligada, pelo brick, por outro PC ou a mao; 'on'/'off' so mudam a
+suposicao. --no-camera: sem visao; so 'cycle N'.
 """
 
 import argparse
@@ -110,7 +110,7 @@ def main():
     parser.add_argument("--camera", type=int, help="indice da camera")
     parser.add_argument("--no-camera", action="store_true", help="sem visao; so 'cycle N'")
     parser.add_argument("--assume-conveyor", action="store_true",
-                        help="sem EV3: 'on'/'off' so registram o estado da esteira")
+                        help="sem EV3: esteira assumida ligada (brick, outro PC ou a mao)")
     parser.add_argument("--echo", action="store_true", help="ecoa o trafego serial")
     args = parser.parse_args()
 

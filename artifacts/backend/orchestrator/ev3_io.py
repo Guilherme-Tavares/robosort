@@ -8,8 +8,10 @@ bancada: Motor(porta, protocol=USB), start_move(speed, direction) e
 stop(brake). Rampa de aceleracao porque o arranque brusco derruba a
 caixinha.
 
-Sem ENABLE_CONVEYOR, ou com --assume-conveyor, AssumedConveyor so guarda o
-estado: serve quando a esteira e ligada pelo brick ou por outro PC.
+Sem ENABLE_CONVEYOR, ou com --assume-conveyor, a esteira sai da jogada:
+AssumedConveyor nasce "ligada" e 'on'/'off' so mudam o que o orquestrador
+assume. Serve quando a esteira e ligada pelo brick ou por outro PC, ou quando
+a caixinha e levada a mao ate o sensor.
 """
 
 import config
@@ -20,15 +22,16 @@ class ConveyorError(RuntimeError):
 
 
 class AssumedConveyor:
-    """Sem controle real: 'on' e 'off' apenas registram o que o operador
-    diz que a esteira esta fazendo."""
+    """Sem controle real. Nasce ligada; 'on' e 'off' apenas registram o que
+    o operador diz que a esteira esta fazendo."""
 
     def __init__(self, log=print):
         self.log = log
-        self.running = False
+        self.running = True
         self.speed = config.CONVEYOR_SPEED
 
     def __enter__(self):
+        self.log("  esteira: fora do orquestrador; assumida ligada (brick, outro PC ou a mao)")
         return self
 
     def __exit__(self, *exc):
@@ -36,7 +39,7 @@ class AssumedConveyor:
 
     def start(self):
         self.running = True
-        self.log(f"  esteira: assumida ligada a {self.speed}% (sem controle pelo EV3)")
+        self.log("  esteira: assumida ligada (sem controle pelo EV3)")
 
     def stop(self):
         self.running = False

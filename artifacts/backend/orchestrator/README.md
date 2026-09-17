@@ -16,7 +16,7 @@ de flags em `config.py`:
 |---|---|---|
 | `ENABLE_VISION` | on | a câmera identifica o ID da caixinha; sem ela, só `cycle N` |
 | `ENABLE_LOCALIZATION` | **off** | a visão localiza a caixinha e o alvo é interpolado; off: alvo fixo em `FIXED_CORNER` (0) |
-| `ENABLE_CONVEYOR` | off | esteira LEGO pelo EV3; off (ou `--assume-conveyor`): `on`/`off` só registram o estado |
+| `ENABLE_CONVEYOR` | **on** | esteira LEGO pelo EV3, operada pelo console; off (ou `--assume-conveyor`): a esteira sai da jogada e é assumida ligada — pelo brick, por outro PC ou com a caixinha levada à mão |
 | `ENABLE_SORTING` | on | prepara e arma o empurrador; exige firmware com `ENABLE_SORTING=1` |
 
 A localização fica desligada até os valores-guia dos quatro cantos voltarem
@@ -64,9 +64,11 @@ status         esteira, modo, ciclos feitos
 stop           interrompe, volta a HOME, solta o braço e sai
 ```
 
-`--assume-conveyor`: sem controle pelo EV3; `on`/`off` só registram que a
-esteira foi ligada por fora (pelo brick ou por outro PC). `--no-camera`: sem
-visão; só `cycle N`. Se a câmera não abrir, o console avisa e segue sem ela.
+`--assume-conveyor` (ou `ENABLE_CONVEYOR = False`): a esteira sai da jogada
+e é assumida ligada desde o início — pelo brick, por outro PC ou com a
+caixinha levada à mão até o sensor; `on`/`off` só mudam a suposição.
+`--no-camera`: sem visão; só `cycle N`. Se a câmera não abrir, o console
+avisa e segue sem ela.
 
 ### O ciclo
 
