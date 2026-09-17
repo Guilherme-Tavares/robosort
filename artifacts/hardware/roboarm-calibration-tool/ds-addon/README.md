@@ -6,6 +6,11 @@ Orquestrador provisório: aciona o firmware de
 [`calibration-tool/calibration-tool.ino`](../calibration-tool/calibration-tool.ino) pelo controle,
 durante a fase de calibração.
 
+**Só fala o protocolo da ferramenta de calibração.** Não funciona com o
+`robosort-firmware` de produção, que responde `OK`/`ERR`/`STATE` e rejeita
+movimento fora dos limites; lá o L2 não teria efeito. Para testar produção sem o
+orquestrador, use `mv home`, `mv dest` e `mv area` pelo Monitor Serial.
+
 ## Serial
 
 O firmware roda a **115200 baud**. O Monitor Serial do Arduino IDE precisa
