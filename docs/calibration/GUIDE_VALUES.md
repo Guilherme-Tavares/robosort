@@ -26,4 +26,4 @@ Alcance: 60
 [3]
 Base: 37
 Altura: 31
-Alcance: 50
+Alcance: 58
