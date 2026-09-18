@@ -78,10 +78,14 @@ const int knownMax[]  = {  178,   120,    136,     176 };
 // Passo do ajuste fino de + e -.
 const int stepSize[]  = {2, 1, 2, 2};
 
-// Juntas que vao direto ao alvo, sem interpolacao. A garra precisa fechar
-// de uma vez para morder: a 30 graus/s o servo chega sem forca util. As
-// demais continuam suaves, porque carregam o braco.
-const bool direct[]   = {false, true, false, false};
+// Garra direta (1) ou interpolada (0). Direta: um pulso so, na velocidade
+// do servo, para fechar de uma vez e morder. Interpolada: smoothstep como as
+// outras juntas. As demais juntas sao sempre interpoladas: carregam o braco.
+#ifndef GRIPPER_DIRECT
+#define GRIPPER_DIRECT 0
+#endif
+
+const bool direct[]   = {false, GRIPPER_DIRECT, false, false};
 
 Adafruit_PWMServoDriver pwm(PCA_ADDR);
 bool  pcaOk = false;

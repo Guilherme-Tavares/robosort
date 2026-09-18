@@ -177,10 +177,10 @@ o soltam. O ds-addon ignora a seção do empurrador no `dump`.
    posição correta. (Na versão anterior, com a biblioteca `Servo`, isso
    exigia `write()` antes de `attach()`; sem essa ordem a saída era ativada
    em 90°, e a armadilha danificou servo em bancada.)
-3. **Todo movimento é interpolado** com *smoothstep*, nunca `write()` direto,
-   **exceto nas juntas marcadas em `direct[]`**, hoje só a garra: ela precisa
-   fechar de uma vez para morder, e a 30°/s chega sem força útil. As juntas
-   que carregam o braço continuam suaves.
+3. **Todo movimento é interpolado** com *smoothstep*, nunca `write()` direto.
+   Exceção opcional: a garra, com `GRIPPER_DIRECT 1`, vai num pulso só, para
+   fechar de uma vez e morder. O padrão é `0` (interpolada). As juntas que
+   carregam o braço são sempre interpoladas.
 4. **Movimento não bloqueante:** o `loop()` continua lendo a serial durante o
    deslocamento, então `stop` age de imediato. A leitura é caractere a
    caractere, porque `Serial.readStringUntil()` bloqueia até 1 s e anularia
