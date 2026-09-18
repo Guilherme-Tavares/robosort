@@ -65,11 +65,12 @@ static const int ARM_CENTER[ARM_JOINTS]   = {   98,    82,     91,      96 };
 static const int ARM_HOME[ARM_JOINTS]     = {   18,    82,     91,      96 };
 static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    101,      102 };
 
-// DROP: de DELIVERY, avanca ate o ponto de soltura sobre a esteira (base,
-// alcance, altura, nesta ordem) antes de abrir a garra.
-#define DROP_BASE    98
-#define DROP_REACH   98
+// DROP: de DELIVERY, altura e alcance (nesta ordem) avancam ate o ponto de
+// soltura sobre a esteira; a garra abre e fecha; alcance e altura (nesta
+// ordem) voltam a DELIVERY, e so entao o braco vai a HOME com seguranca.
+// A base nao muda: fica a de DELIVERY.
 #define DROP_HEIGHT  92
+#define DROP_REACH   98
 
 // ---- Area de aquisicao: valores-guia por canto ----
 // Base, altura e alcance para pegar a caixinha no centro de cada celula.
@@ -88,7 +89,7 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // ---- Movimento ----
 #define STEP_DELAY    8      // ms entre subpassos
 #define SUBSTEPS      4      // subpassos por grau (32 ms/grau, ~30 graus/s)
-#define SEQ_MAX_STEPS 12     // passos de uma sequencia (mv dest usa 11)
+#define SEQ_MAX_STEPS 14     // passos de uma sequencia (mv dest usa 12)
 
 // ---- Latencias de seguranca nas sequencias ----
 // Pausas em torno do fechamento da garra: antes, para o braco assentar;
@@ -105,16 +106,18 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // o firmware o move sozinho, sem esperar o PC nem o Motion. Velocidade do
 // module-tester, validada em bancada: rapida, mas suave no arranque e na
 // chegada, para empurrar a caixinha em vez de lanca-la.
-// Fluxo por caixinha: 'prep' (pre-posicao do sentido decidido) -> 'arm'
-// (sensor armado com o sentido) -> DET -> empurrao -> volta a pre-posicao
-// -> PUSHED. Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
+// Fluxo por caixinha: 'prep' (declara e energiza na pre-posicao do sentido
+// decidido) -> braco entrega -> 'arm' quando a garra abre -> DET -> empurrao
+// -> segura PUSHER_HOLD_MS -> volta a pre-posicao -> assenta -> PUSHED.
+// Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
 #if ENABLE_SORTING
   #define PIN_IR_NORTE         2     // pino digital do Uno; A4/A5 sao o I2C
   #define CH_PUSHER_NORTE      8     // empurradores a partir do canal 8
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
   #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
   #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
-  #define PUSHER_SETTLE_MS     200   // assentamento apos cada chegada (ida e volta)
+  #define PUSHER_HOLD_MS       1000  // segura o empurrao antes de voltar a pre-posicao
+  #define PUSHER_SETTLE_MS     200   // assentamento na volta, antes do PUSHED
 
   // Posicoes do empurrador, validadas em bancada. O repouso e a pre-posicao
   // do sentido horario.

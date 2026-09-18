@@ -47,7 +47,7 @@ def show_config(cfg):
         c = cfg.corners[k]
         print(f"    [{k}] {c['base']:3d} {c['altura']:3d} {c['alcance']:3d}")
     print(f"  aproximacao: altura {cfg.approach['altura']} alcance {cfg.approach['alcance']}")
-    print(f"  soltura: base {cfg.drop['base']} alcance {cfg.drop['alcance']} altura {cfg.drop['altura']}")
+    print(f"  soltura: altura {cfg.drop['altura']} alcance {cfg.drop['alcance']}")
     flags = [f for f in ("ENABLE_VISION", "ENABLE_LOCALIZATION", "ENABLE_CONVEYOR", "ENABLE_SORTING")
              if getattr(config, f)]
     print(f"  flags ativas: {', '.join(flags) or 'nenhuma'}; canto fixo {config.FIXED_CORNER}")

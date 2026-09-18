@@ -84,24 +84,29 @@ class Arm:
         self.mv("garra", self.gripper_closed)
         time.sleep(config.GRIP_HOLD_DELAY)
 
-    def deliver(self):
+    def deliver(self, on_release=None):
         """Mesma ordem de 'mv dest': alcance, altura, base ate DELIVERY;
-        base, alcance, altura ate DROP; garra abre, pausa, fecha, pausa,
-        repousa."""
+        altura e alcance ate DROP; garra abre, pausa, fecha, pausa, repousa;
+        alcance e altura de volta a DELIVERY, para o home partir de uma
+        pose segura. on_release() roda logo apos a garra abrir: e o momento
+        de armar o sensor, com a caixinha caindo na esteira."""
         d = self._pose("delivery")
         drop = self.cfg.drop
         self.log("  deliver")
         self.mv("alcance", d["alcance"])
         self.mv("altura", d["altura"])
         self.mv("base", d["base"])
-        self.mv("base", drop["base"])
-        self.mv("alcance", drop["alcance"])
         self.mv("altura", drop["altura"])
+        self.mv("alcance", drop["alcance"])
         self.mv("garra", self.gripper_open)
+        if on_release:
+            on_release()
         time.sleep(config.GRIP_CLOSE_DELAY)
         self.mv("garra", self.gripper_closed)
         time.sleep(config.GRIP_HOLD_DELAY)
         self.mv("garra", d["garra"])
+        self.mv("alcance", d["alcance"])
+        self.mv("altura", d["altura"])
 
     def go_home(self):
         """Mesma ordem de 'mv home': base, altura, alcance, garra."""
@@ -156,14 +161,20 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
     state, direction = config.route(pid)
     log(f"  destino: {state} -> empurrador {direction}")
 
-    # 3. Empurrador na pre-posicao e sensor armado com o sentido, antes de o
-    #    braco se mover: a zona fica no comeco da esteira e a caixinha pode
-    #    chegar ao sensor antes de o braco terminar de voltar.
+    # 3. Empurrador declarado e energizado na pre-posicao do sentido, com um
+    #    tempo para assentar, antes de o braco se mover. O sensor so e armado
+    #    quando a garra abre na entrega (ver deliver): antes disso nada deve
+    #    passar por ele.
+    on_release = None
     if config.ENABLE_SORTING:
         link.drain_events()
         link.prep(zone, direction)
-        link.arm(zone, direction)
-        log(f"  {zone}: preparado e armado para {direction}")
+        time.sleep(config.PREP_SETTLE_DELAY)
+        log(f"  {zone}: empurrador na pre-posicao ({direction})")
+
+        def on_release():
+            link.arm(zone, direction)
+            log(f"  {zone}: sensor armado ({direction})")
 
     # 4. Aquisicao e entrega.
     log(f"  {config.DELAY_BEFORE_PICK:.0f} s para a caixinha estar no lugar")
@@ -175,7 +186,7 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
         arm.pick(**target)
     else:
         arm.pick_corner(config.FIXED_CORNER)
-    arm.deliver()
+    arm.deliver(on_release)
     arm.go_home()
 
     # 5. Confirmacao do empurrao. O DET pode ter chegado durante o home.

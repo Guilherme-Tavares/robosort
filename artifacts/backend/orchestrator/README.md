@@ -80,11 +80,13 @@ desligada).
 
 1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames) ou usa o N de `cycle`
 2. Roteia: par → Rondônia → `cw`; ímpar → Acre → `ccw`
-3. `prep norte <sentido>` e `arm norte <sentido>` — **antes de o braço se mover**: a zona
-   fica no começo da esteira e a caixinha chega ao sensor antes de o braço voltar
-4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega; HOME
-5. Espera `PUSHED norte` — o firmware empurrou sozinho na detecção; o `DET` pode ter
-   chegado durante o HOME e fica na fila até aqui
+3. `prep norte <sentido>` — empurrador declarado e energizado na pré-posição, antes de o
+   braço se mover; `PREP_SETTLE_DELAY` para assentar
+4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
+   ponto de soltura, **abre a garra e só então `arm norte <sentido>`** — antes disso nada
+   deve passar pelo sensor; fecha, recua; HOME
+5. Espera `PUSHED norte` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
+   pré-posição; o `DET` pode ter chegado durante o HOME e fica na fila até aqui
 
 O próximo ciclo só começa com o `PUSHED` recebido e o braço em HOME. Sem
 `PUSHED` em `DET_TIMEOUT`, o ciclo é abandonado com mensagem e o sensor

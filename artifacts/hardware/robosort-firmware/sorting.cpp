@@ -44,14 +44,15 @@ int eased(const Mover& m, int s) {
 void start(int z, int target, bool autonomous) {
   int j = zones[z].joint;
   Mover& m = mover[z];
-  if (Joints::state(j) == JS_FREE) {
-    // Primeira energizacao: nao ha de onde interpolar. Pulso direto;
-    // sem carga, o salto e inofensivo. Repouso mecanico e o neutro.
+  if (Joints::state(j) != JS_LIVE) {
+    // Ainda sem pulso (solta, ou so declarada por 'home'): nao ha de onde
+    // interpolar. Declara no alvo e energiza ali, num pulso so, em vez de
+    // energizar na posicao declarada e interpolar a partir dela; sem carga,
+    // um eventual salto e inofensivo, e evita o vaivem neutro -> alvo.
     Joints::moveDirect(j, target);
     m.moving = false;
     return;
   }
-  if (Joints::state(j) == JS_DECLARED) Joints::energize(j);
   m.from       = Joints::angle(j);
   m.to         = target;
   m.total      = abs(m.to - m.from) * PUSHER_SUBSTEPS;
@@ -143,10 +144,12 @@ Sorting::Event Sorting::poll() {
       }
     }
 
-    // Assentou: se foi a ida do empurrao, volta a pre-posicao; se foi a
-    // volta, PUSHED. O empurrador termina onde comecou, pronto para o
-    // proximo 'prep' do mesmo sentido sem se mover.
-    if (m.arrivedAt && now - m.arrivedAt >= PUSHER_SETTLE_MS) {
+    // Chegou: se foi a ida do empurrao, segura PUSHER_HOLD_MS e volta a
+    // pre-posicao; se foi a volta, assenta PUSHER_SETTLE_MS e PUSHED. O
+    // empurrador termina onde comecou, pronto para o proximo 'prep' do mesmo
+    // sentido sem se mover.
+    unsigned long wait = m.returnTo >= 0 ? PUSHER_HOLD_MS : PUSHER_SETTLE_MS;
+    if (m.arrivedAt && now - m.arrivedAt >= wait) {
       m.arrivedAt = 0;
       if (m.returnTo >= 0) {
         int back = m.returnTo;

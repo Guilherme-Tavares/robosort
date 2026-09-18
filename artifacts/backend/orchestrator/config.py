@@ -14,7 +14,7 @@ ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a 
                               # a caixinha movida a mao ate o sensor)
 ENABLE_SORTING = True         # sensor IR + empurrador (firmware com ENABLE_SORTING=1)
 
-FIXED_CORNER = 3              # canto usado quando a localizacao esta desligada
+FIXED_CORNER = 0              # unica area de aquisicao por enquanto; os demais cantos nao valem
 
 # ---- Serial ----
 BAUD = 115200
@@ -60,6 +60,7 @@ ARUCO_DICT = "DICT_4X4_50"
 DELAY_BEFORE_PICK = 3.0       # tempo para o operador posicionar a caixinha
 GRIP_CLOSE_DELAY = 1.0        # antes de a garra fechar
 GRIP_HOLD_DELAY = 1.0         # depois de fechar
+PREP_SETTLE_DELAY = 1.0       # depois de o empurrador chegar a pre-posicao
 
 # ---- Separacao ----
 ZONE = "norte"                # unica zona nesta fase

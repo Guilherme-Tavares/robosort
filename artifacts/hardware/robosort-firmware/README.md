@@ -72,7 +72,7 @@ regrave.
 | `PUSHER_*` | neutro, pré-posições e posições de empurrão por sentido; velocidade e `PUSHER_SETTLE_MS` |
 | `CORNER_BASE/HEIGHT/REACH` | valores-guia dos quatro cantos da área (`docs/calibration/GUIDE_VALUES.md`) |
 | `APPROACH_HEIGHT/REACH` | altura e alcance de aproximação, comuns aos cantos |
-| `DROP_BASE/REACH/HEIGHT` | ponto de soltura sobre a esteira, alcançado a partir de `ARM_DELIVERY` antes de abrir a garra |
+| `DROP_HEIGHT/REACH` | ponto de soltura sobre a esteira: altura e alcance avançam a partir de `ARM_DELIVERY` antes de abrir a garra, e voltam depois; a base fica a de `ARM_DELIVERY` |
 | `GRIP_CLOSE_DELAY_MS` / `GRIP_HOLD_DELAY_MS` | pausas de 1 s antes e depois de a garra fechar |
 
 A garra é um servo de posição de 180° (o original era de rotação contínua,
@@ -91,7 +91,7 @@ PC → Arduino
   mv <junta> <ang>     move até o ângulo, com interpolação; OK ao concluir
   mv <junta>           mostra a junta (STATE) e a torna ativa
   mv home              vai a HOME: base, altura, alcance, garra
-  mv dest              vai a DELIVERY (alcance, altura, base), avança a DROP (base, alcance, altura); garra abre, fecha, repousa
+  mv dest              DELIVERY (alcance, altura, base); DROP (altura, alcance); garra abre, fecha; volta (alcance, altura)
   mv area <0-3>        pega a caixinha no canto (ver Sequências)
   sel <junta>          torna a junta ativa e a mostra
   + / -                move a junta ativa um passo (garra 1°, demais 2°)
@@ -121,7 +121,7 @@ Arduino → PC
   STATE <junta> <ang|?> <solta|declarada|energizada> <min> <max> <home> <delivery>
   CORNER <k> <base> <altura> <alcance>
   APPROACH <altura> <alcance>
-  DROP <base> <alcance> <altura>
+  DROP <altura> <alcance>
   GRIPPER <aberta> <fechada>
   # <texto>            informação para o operador; o PC ignora
   DET <zona>           sensor detectou; empurrão já em curso        [assíncrono]
@@ -167,7 +167,7 @@ delas como no meio de um movimento.
 |---|---|
 | `mv <j> <ang>`, `+`, `-` | um |
 | `mv home` | base, altura, alcance, garra → `ARM_HOME` |
-| `mv dest` | alcance, altura, base → `ARM_DELIVERY`; base → `DROP_BASE`; alcance → `DROP_REACH`; altura → `DROP_HEIGHT`; garra → `GRIPPER_OPEN`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s**; garra → `ARM_DELIVERY` (repousa) |
+| `mv dest` | alcance, altura, base → `ARM_DELIVERY`; altura → `DROP_HEIGHT`; alcance → `DROP_REACH`; garra → `GRIPPER_OPEN`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s**; garra → `ARM_DELIVERY` (repousa); alcance → `ARM_DELIVERY`; altura → `ARM_DELIVERY` |
 | `mv area <k>` | base → `CORNER_BASE[k]`; garra → `GRIPPER_OPEN`; altura → `APPROACH_HEIGHT`; alcance → `APPROACH_REACH`; altura → `CORNER_HEIGHT[k]`; alcance → `CORNER_REACH[k]`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s** |
 
 O empurrador não passa pelo `motion` nem por sequências: tem interpolador
@@ -253,7 +253,7 @@ fisicamente em `ARM_HOME` e uma caixinha no canto 0:
 home              declara as quatro e mostra
 mv home           energiza todas na pose inicial, sem salto
 mv area 0         base, garra abre, aproxima, desce, 1 s, fecha, 1 s
-mv dest           leva a esteira, avança ao ponto de soltura, abre, 1 s, fecha, 1 s, repousa
+mv dest           leva a esteira, avança ao ponto de soltura, abre, 1 s, fecha, 1 s, repousa, recua
 mv home           volta
 offall
 ```
@@ -283,15 +283,21 @@ O movimento é *smoothstep* a **4 ms por grau** (`PUSHER_STEP_DELAY_MS`,
 bastante para empurrar, suave o bastante para não lançar a caixinha. O braço
 anda a 32 ms por grau.
 
-Fluxo por caixinha, comandado pelo PC antes de o braço se mover:
+Fluxo por caixinha:
 
 ```
-prep norte cw      pré-posição do sentido decidido (PUSHER_PRE_CW / _CCW)
-arm norte cw       sensor armado com o sentido
-                   ... braço pega, entrega, volta ...
+prep norte cw      declara e energiza na pré-posição do sentido (PUSHER_PRE_CW / _CCW)
+                   ... o braço pega e leva à esteira ...
+arm norte cw       quando a garra abre: sensor armado com o sentido
 DET norte          o firmware começou a mover o empurrador para PUSHER_PUSH_CW / _CCW
-PUSHED norte       empurrou, voltou à pré-posição e assentou; o PC pode iniciar o próximo ciclo
+                   chega, segura PUSHER_HOLD_MS, volta à pré-posição, assenta PUSHER_SETTLE_MS
+PUSHED norte       o PC pode iniciar o próximo ciclo
 ```
+
+`prep` num empurrador ainda sem pulso (solto, ou só declarado por `home`)
+declara-o **na própria pré-posição** e energiza ali, num pulso só — em vez
+de energizar no neutro declarado e interpolar até lá. Sem carga, um eventual
+salto é inofensivo, e evita o vaivém neutro → pré-posição.
 
 Uma detecção por `arm`: o sensor desarma ao disparar. `arm` recusa
 (`ERR sensor`) se o sensor já estiver em obstáculo — senão o empurrão

@@ -37,7 +37,7 @@ EVENTS = ("DET", "PUSHED")
 STATE_RE = re.compile(r"STATE (\w+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
 CORNER_RE = re.compile(r"CORNER (\d) (\d+) (\d+) (\d+)$")
 APPROACH_RE = re.compile(r"APPROACH (\d+) (\d+)$")
-DROP_RE = re.compile(r"DROP (\d+) (\d+) (\d+)$")
+DROP_RE = re.compile(r"DROP (\d+) (\d+)$")
 GRIPPER_RE = re.compile(r"GRIPPER (\d+) (\d+)$")
 
 
@@ -88,7 +88,7 @@ class ArmConfig:
     gripper: dict       # {"open", "closed"}: angulos proprios, nao os limites
     corners: dict       # k -> {"base", "altura", "alcance"}
     approach: dict      # {"altura", "alcance"}
-    drop: dict          # {"base", "alcance", "altura"}: soltura, apos DELIVERY
+    drop: dict          # {"altura", "alcance"}: soltura sobre a esteira, apos DELIVERY
 
     def limits(self, joint):
         j = self.joints[joint]
@@ -364,8 +364,8 @@ class Arduino:
                 continue
             m = DROP_RE.match(line)
             if m:
-                base, alcance, altura = map(int, m.groups())
-                drop = {"base": base, "alcance": alcance, "altura": altura}
+                altura, alcance = map(int, m.groups())
+                drop = {"altura": altura, "alcance": alcance}
         if sorted(corners) != [0, 1, 2, 3] or approach is None or drop is None:
             raise ArduinoError("'corners' incompleto: esperados CORNER 0-3, APPROACH e DROP")
 
