@@ -6,3 +6,5 @@ robosort-spec-firmware-orquestrador.md
 
 # Python cache
 __pycache__/
+
+.AGENTS.md
