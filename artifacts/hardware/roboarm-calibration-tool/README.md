@@ -80,14 +80,17 @@ rígidos nos dois sentidos; na garra um solavanco pode forçar os dedos.
 ## Comandos
 
 ```
-home             declara as 4 juntas nos centros conhecidos (não energiza)
+home / dest      declara as 4 juntas em HOME / DELIVERY (não energiza)
 set <j> <ang>    declara onde a junta está AGORA (não move, não energiza)
 sel <j>          torna ativa e informa o ângulo atual (não move)
 mv <j> <ang>     torna ativa, energiza sem salto e vai suave até <ang>
 + / -            move a junta ativa (garra 1 grau, demais 2)
+mv home          sequência: base, altura, alcance, garra → HOME
+mv dest          sequência: DELIVERY, DROP, garra abre/fecha, volta a DELIVERY
+mv area          sequência: canto 0, aproximação, descida, garra fecha
 mv norte <id>    ciclo da zona: pré-posição, arma o sensor, empurra e volta
                  (id par = cw, ímpar = ccw; aceita `cw`/`ccw` direto)
-stop             interrompe o movimento e o ciclo da zona, mantém energizado
+stop             interrompe movimento, sequência e ciclo da zona; mantém energizado
 off [<j>]        solta a junta indicada (ou `norte`), ou a ativa
 offall           solta todas as juntas (pânico)
 min / max        registra o ângulo atual como limite da junta ativa
@@ -105,6 +108,24 @@ Durante um movimento em curso só são aceitos `stop`, `off`, `offall`, `dump`,
 `?`, `h`, `+` e `-`. Os demais pedem `stop` antes, porque `sel` e `mv` trocam a
 junta ativa, e trocá-la no meio de uma interpolação mandaria os ângulos do
 movimento em curso para o servo errado.
+
+## Poses: espelho da produção
+
+O bloco *poses* no topo do sketch tem **os mesmos nomes e colunas** de
+`robosort-firmware/config.h`: `ARM_HOME`, `ARM_DELIVERY`, `GRIPPER_OPEN/CLOSED`,
+`DROP_HEIGHT/REACH`, `CORNER0_*`, `APPROACH_*` e as pausas da garra. É para
+copiar e colar entre os dois arquivos.
+
+O fluxo de ajuste: `home` → `mv home` → `mv area` → `mv dest` → `mv home`, as
+mesmas sequências e ordens do firmware de produção. Uma pose errada aparece
+aqui, onde dá para corrigir com `+`/`-` e `?` sem regravar a produção; achado o
+valor, edite o bloco, regrave a calibração, repita, e só então leve para o
+`config.h`. As sequências usam o mesmo interpolador do `mv`, uma junta por vez,
+e respeitam os avisos `~~` de limite. `stop` interrompe no meio, inclusive
+numa pausa.
+
+Os centros da calibração (coluna *Centro* da tabela abaixo) não estão mais no
+sketch: `home` declara em `ARM_HOME`, como na produção.
 
 ## Uso típico
 
@@ -242,7 +263,7 @@ reiniciar.
 Medidos com esta ferramenta, neste braço. São posições confortáveis, já com
 margem, **não** o ponto onde o batente é encontrado.
 
-Os mesmos valores estão no bloco *limites calibrados* no topo do sketch
+Os limites estão no bloco *limites calibrados* no topo do sketch
 (`centers[]`, `knownMin[]`, `knownMax[]`), de onde o firmware os carrega no
 boot. Esta tabela é a cópia legível; o sketch é o que vale. Ao atualizar um,
 atualize o outro.

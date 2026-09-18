@@ -67,13 +67,41 @@ const int   channels[] = {BASE_CH, GRIPPER_CH, HEIGHT_CH, REACH_CH};
 // Tabela "Resultados da calibracao" do README, na ordem base, garra, altura,
 // alcance. Sao posicoes confortaveis, com margem; nao o ponto do batente.
 // Apos cada sessao, copie o 'dump' para ca. -1 em min/max = desconhecido.
-//
-// 'home' declara as juntas nos centros. min/max nao bloqueiam movimento (e
-// preciso poder ultrapassar um limite para refina-lo), mas geram aviso '~~'.
+// min/max nao bloqueiam movimento (e preciso poder ultrapassar um limite
+// para refina-lo), mas geram aviso '~~'.
 //                          base  garra  altura  alcance
-const int centers[]   = {   98,    82,     91,     96 };
 const int knownMin[]  = {   18,    82,     16,      36 };
 const int knownMax[]  = {  178,   120,    136,     176 };
+
+// ------------------------------------------------------------------- poses
+// Espelho de robosort-firmware/config.h: mesmos nomes, mesma ordem de
+// colunas, para copiar e colar entre os dois. Ajuste aqui com as sequencias
+// ('mv home', 'mv dest', 'mv area') e o ajuste fino (+/-), e leve para a
+// producao. 'home' e 'dest' declaram as juntas nestas poses.
+//                                     base  garra  altura  alcance
+const int ARM_HOME[JOINT_COUNT]     = {   18,    82,     91,      96 };
+const int ARM_DELIVERY[JOINT_COUNT] = {   92,    82,    101,     102 };
+
+// Garra: aberta e fechada sao angulos proprios, nao os limites.
+#define GRIPPER_OPEN      120
+#define GRIPPER_CLOSED     82
+
+// DROP: de DELIVERY, altura e alcance avancam ate a soltura; depois voltam.
+#define DROP_HEIGHT        92
+#define DROP_REACH         98
+
+// Canto 0: unica area de aquisicao por enquanto.
+#define CORNER0_BASE       44
+#define CORNER0_HEIGHT     29
+#define CORNER0_REACH      56
+
+// Aproximacao: altura e alcance antes de descer ao canto.
+#define APPROACH_HEIGHT    39
+#define APPROACH_REACH     78
+
+// Pausas em torno do fechamento da garra.
+#define GRIP_CLOSE_DELAY_MS 1000
+#define GRIP_HOLD_DELAY_MS  1000
 
 // Passo do ajuste fino de + e -.
 const int stepSize[]  = {2, 1, 2, 2};
@@ -112,6 +140,17 @@ unsigned long lastStepAt = 0;
 // Buffer da leitura serial nao bloqueante
 char lineBuf[LINE_MAX];
 byte lineLen = 0;
+
+// Sequencia de passos (mv home / mv dest / mv area): um por vez, pelo mesmo
+// interpolador do 'mv'. joint = SEQ_WAIT e uma pausa de 'value' ms.
+#define SEQ_WAIT (-1)
+#define SEQ_MAX  14
+struct SeqStep { int8_t joint; uint16_t value; };
+SeqStep seqSteps[SEQ_MAX];
+int  seqCount  = 0;
+int  seqIndex  = 0;
+bool seqActive = false;
+unsigned long seqWaitUntil = 0;
 
 // Estado do empurrador e do ciclo da zona. Independente da junta ativa e de
 // 'moving': o braco pode se mover com o sensor armado, como em producao.
@@ -234,22 +273,137 @@ void releaseAll() {
   Serial.println(F(">> TUDO SOLTO."));
 }
 
-// Declara as quatro juntas nos centros de bancada, sem energizar. Vale apenas
-// se o braco estiver de fato em repouso; se foi movido com a mao, use 'set'.
-void home() {
+// Declara as quatro juntas numa pose fixa (HOME ou DELIVERY), sem energizar.
+// Vale apenas se o braco estiver de fato nela; se foi movido com a mao, use
+// 'set'. Juntas ja energizadas sao mantidas.
+void declarePose(const int* pose, const __FlashStringHelper* label) {
   for (int i = 0; i < JOINT_COUNT; i++) {
     if (liveAt[i]) continue;              // junta energizada ja tem posicao real
-    angles[i]     = centers[i];
+    angles[i]     = pose[i];
     declaredAt[i] = true;
   }
-  Serial.println(F(">> juntas declaradas nos centros (nao energizadas):"));
+  Serial.print(F(">> juntas declaradas em ")); Serial.print(label);
+  Serial.println(F(" (nao energizadas):"));
   Serial.print(F("  "));
   for (int i = 0; i < JOINT_COUNT; i++) {   // da tabela, nao de texto fixo
     Serial.print(F(" ")); Serial.print(names[i]);
-    Serial.print(F(" "));  Serial.print(centers[i]);
+    Serial.print(F(" "));  Serial.print(pose[i]);
   }
   Serial.println();
   Serial.println(F("   confira se o braco esta mesmo assim antes do primeiro 'mv'"));
+}
+
+void home() { declarePose(ARM_HOME,     F("HOME")); }
+void dest() { declarePose(ARM_DELIVERY, F("DELIVERY")); }
+
+// ---------------------------------------------------------------- sequencias
+
+// Energiza a junta se preciso e inicia o movimento, como o 'mv' faz.
+// false se a posicao da junta e desconhecida.
+bool moveJoint(int j, int ang) {
+  if (!liveAt[j] && !declaredAt[j]) {
+    Serial.print(F("!! ")); Serial.print(names[j]);
+    Serial.println(F(" tem posicao desconhecida; use 'home', 'dest' ou 'set'"));
+    return false;
+  }
+  current = j;
+  if (!liveAt[j]) {
+    writeAngle(j, angles[j]);            // primeiro pulso ja na posicao declarada
+    liveAt[j] = true;
+    Serial.print(F(">> ")); Serial.print(names[j]);
+    Serial.print(F(" energizada em ")); Serial.println(angles[j]);
+  }
+  startMove(ang);
+  return true;
+}
+
+void seqCancel() {
+  if (!seqActive) return;
+  seqActive = false;
+  Serial.println(F("!! sequencia interrompida"));
+}
+
+// Avanca a partir de seqIndex ate um passo que exija movimento ou espera.
+void seqAdvance() {
+  while (seqIndex < seqCount) {
+    SeqStep& s = seqSteps[seqIndex];
+    if (s.joint == SEQ_WAIT) {
+      seqWaitUntil = millis() + s.value;
+      return;
+    }
+    if (!moveJoint(s.joint, s.value)) { seqActive = false; return; }
+    if (moving) return;                  // termina em updateMove; volta por updateSequence
+    seqIndex++;                          // ja estava la, ou junta direta
+  }
+  seqActive = false;
+  Serial.println(F(">> sequencia concluida"));
+}
+
+void seqStart(const SeqStep* steps, int n) {
+  for (int i = 0; i < n; i++) seqSteps[i] = steps[i];
+  seqCount  = n;
+  seqIndex  = 0;
+  seqActive = true;
+  seqWaitUntil = 0;
+  seqAdvance();
+}
+
+// Chamado no loop: quando o passo corrente terminou (movimento ou pausa),
+// passa ao proximo.
+void updateSequence() {
+  if (!seqActive || moving) return;
+  if (seqWaitUntil && millis() < seqWaitUntil) return;
+  seqWaitUntil = 0;
+  seqIndex++;
+  seqAdvance();
+}
+
+// mv home: base, altura, alcance, garra.
+void seqHome() {
+  SeqStep s[] = {
+    { J_BASE,    (uint16_t)ARM_HOME[J_BASE]    },
+    { J_HEIGHT,  (uint16_t)ARM_HOME[J_HEIGHT]  },
+    { J_REACH,   (uint16_t)ARM_HOME[J_REACH]   },
+    { J_GRIPPER, (uint16_t)ARM_HOME[J_GRIPPER] },
+  };
+  seqStart(s, 4);
+}
+
+// mv dest: alcance, altura, base ate DELIVERY; altura e alcance ate DROP;
+// garra abre, pausa, fecha, pausa, repousa; alcance e altura de volta.
+void seqDest() {
+  SeqStep s[] = {
+    { J_REACH,   (uint16_t)ARM_DELIVERY[J_REACH]   },
+    { J_HEIGHT,  (uint16_t)ARM_DELIVERY[J_HEIGHT]  },
+    { J_BASE,    (uint16_t)ARM_DELIVERY[J_BASE]    },
+    { J_HEIGHT,  DROP_HEIGHT                       },
+    { J_REACH,   DROP_REACH                        },
+    { J_GRIPPER, GRIPPER_OPEN                      },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS               },
+    { J_GRIPPER, GRIPPER_CLOSED                    },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                },
+    { J_GRIPPER, (uint16_t)ARM_DELIVERY[J_GRIPPER] },
+    { J_REACH,   (uint16_t)ARM_DELIVERY[J_REACH]   },
+    { J_HEIGHT,  (uint16_t)ARM_DELIVERY[J_HEIGHT]  },
+  };
+  seqStart(s, 12);
+}
+
+// mv area: base do canto, garra abre, aproximacao (altura, alcance), descida
+// (altura, alcance), pausa, garra fecha, pausa.
+void seqArea() {
+  SeqStep s[] = {
+    { J_BASE,    CORNER0_BASE         },
+    { J_GRIPPER, GRIPPER_OPEN         },
+    { J_HEIGHT,  APPROACH_HEIGHT      },
+    { J_REACH,   APPROACH_REACH       },
+    { J_HEIGHT,  CORNER0_HEIGHT       },
+    { J_REACH,   CORNER0_REACH        },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS  },
+    { J_GRIPPER, GRIPPER_CLOSED       },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS   },
+  };
+  seqStart(s, 9);
 }
 
 // --------------------------------------------------------------- empurrador
@@ -459,7 +613,10 @@ void report() {
 void help() {
   Serial.println();
   Serial.println(F("=== Calibracao do braco ==="));
-  Serial.println(F("  home           declara as 4 juntas nos centros (nao energiza)"));
+  Serial.println(F("  home / dest    declara as 4 juntas em HOME / DELIVERY (nao energiza)"));
+  Serial.println(F("  mv home        sequencia: base, altura, alcance, garra -> HOME"));
+  Serial.println(F("  mv dest        sequencia: DELIVERY, DROP, garra abre/fecha, volta"));
+  Serial.println(F("  mv area        sequencia: canto 0, aproximacao, descida, garra fecha"));
   Serial.println(F("  set <j> <ang>  declara onde a junta esta AGORA (nao move)"));
   Serial.println(F("  sel <j>        torna ativa e informa o angulo atual (nao move)"));
   Serial.println(F("  mv <j> <ang>   torna ativa, energiza sem salto e vai ate <ang>"));
@@ -534,7 +691,7 @@ void handleCommand(char* cmd) {
 
   // Comandos sempre aceitos, inclusive durante movimento
   if (!strcmp(cmd, "offall")) { releaseAll(); return; }
-  if (!strcmp(cmd, "stop"))   { abortMove(); pusherAbort(); return; }
+  if (!strcmp(cmd, "stop"))   { abortMove(); seqCancel(); pusherAbort(); return; }
   if (!strcmp(cmd, "dump"))   { dumpAll();    return; }
   if (!strcmp(cmd, "?"))      { report();     return; }
   if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) { help(); return; }
@@ -559,6 +716,7 @@ void handleCommand(char* cmd) {
   if (!strcmp(cmd, "+") || !strcmp(cmd, "-")) {
     if (current < 0)      { Serial.println(F("!! nenhuma junta ativa")); return; }
     if (!liveAt[current]) { Serial.println(F("!! junta nao energizada; use 'mv'")); return; }
+    if (seqActive) { Serial.println(F("!! sequencia em curso; use 'stop'")); return; }
     if (moving) { angles[current] = easedAngle(moveStep); moving = false; }
     int d = stepSize[current];
     startMove(angles[current] + (cmd[0] == '+' ? d : -d));
@@ -571,9 +729,9 @@ void handleCommand(char* cmd) {
     return;
   }
 
-  if (!strcmp(cmd, "home")) {
-    if (moving) { Serial.println(F("!! em movimento; use 'stop'")); return; }
-    home();
+  if (!strcmp(cmd, "home") || !strcmp(cmd, "dest")) {
+    if (moving || seqActive) { Serial.println(F("!! em movimento; use 'stop'")); return; }
+    if (cmd[0] == 'h') home(); else dest();
     return;
   }
 
@@ -590,7 +748,15 @@ void handleCommand(char* cmd) {
     return;
   }
 
-  if (moving) { Serial.println(F("!! em movimento; use 'stop' ou 'off'")); return; }
+  if (moving || seqActive) { Serial.println(F("!! em movimento; use 'stop' ou 'off'")); return; }
+
+  // Sequencias de bancada, as mesmas do robosort-firmware.
+  if (!strcmp(cmd, "mv home")) { if (pcaOk) seqHome(); else Serial.println(F("!! PCA9685 ausente")); return; }
+  if (!strcmp(cmd, "mv dest")) { if (pcaOk) seqDest(); else Serial.println(F("!! PCA9685 ausente")); return; }
+  if (!strcmp(cmd, "mv area") || !strcmp(cmd, "mv area 0")) {
+    if (pcaOk) seqArea(); else Serial.println(F("!! PCA9685 ausente"));
+    return;
+  }
 
   // Declara onde a junta esta AGORA. Nao move, nao energiza.
   if (startsWith(cmd, "set ")) {
@@ -670,7 +836,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(IR_PIN, INPUT);
   for (int i = 0; i < JOINT_COUNT; i++) {
-    angles[i]     = centers[i];
+    angles[i]     = ARM_HOME[i];       // sem sentido ate 'home'/'dest'/'set'; so um valor inicial
     declaredAt[i] = false;
     liveAt[i]     = false;
     limitMin[i]   = knownMin[i];       // 'min'/'max' sobrescrevem em RAM
@@ -701,5 +867,6 @@ void setup() {
 void loop() {
   pollSerial();
   updateMove();
+  updateSequence();
   pusherUpdate();
 }

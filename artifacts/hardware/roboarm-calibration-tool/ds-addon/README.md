@@ -65,7 +65,7 @@ espelha o mesmo cálculo.
 ## Antes de apertar Options
 
 **O braço precisa estar fisicamente nas posições iniciais.** O script as
-imprime ao conectar; são os centros que o firmware declara em `home`.
+imprime ao conectar; é a pose `ARM_HOME` que o firmware declara em `home`.
 Energizar um servo o puxa à força até o ângulo declarado, sem interpolação.
 Braço longe do centro significa solavanco em cada junta.
 
