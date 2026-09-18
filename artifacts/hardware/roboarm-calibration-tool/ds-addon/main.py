@@ -17,8 +17,8 @@ Controles:
     R1 + analog dir    alcance: baixo aumenta, cima diminui
     L1 (segurando)     modo de precisao: passo de 1 grau, 200 ms entre comandos
     L2 (segurando)     desativa os limites calibrados; vale so a faixa 0-180
-    Quadrado           alterna a garra entre o minimo e o maximo calibrados
-    Triangulo          garra volta ao centro, somente se estiver no maximo
+    Quadrado           garra vai ao extremo em que nao esta (abre/fecha)
+    Triangulo          garra volta ao repouso, de qualquer extremo
 
 Centros e limites vem do firmware na conexao ('home' + 'dump'); a tabela de
 calibracao vive so no sketch.
@@ -91,7 +91,7 @@ class DryLink:
         BASE: (98, 18, 178),
         HEIGHT: (91, 16, 136),
         REACH: (96, 36, 176),
-        GRIPPER: (86, 81, 91),
+        GRIPPER: (82, 82, 120),
     }
 
     def __enter__(self):
@@ -124,12 +124,13 @@ class Session:
         # config: {junta: (centro, min, max)}, lido do firmware.
         self.start_pose = {j: c for j, (c, _, _) in config.items()}
         self.limits = {j: (lo, hi) for j, (_, lo, hi) in config.items()}
-        # Garra: minimo abre, maximo fecha, centro alivia sem abrir.
-        self.gripper_rest, self.gripper_open, self.gripper_shut = config[GRIPPER]
+        # Garra: qual extremo abre depende da montagem do horn (hoje o maximo
+        # abre e o minimo fecha). O script nao precisa saber: Quadrado alterna
+        # entre os dois extremos a partir de onde a garra esta.
+        self.gripper_rest, self.gripper_min, self.gripper_max = config[GRIPPER]
 
         self.angles = dict(self.start_pose)
         self.live = False               # servos energizados
-        self.next_gripper = self.gripper_open
         self.pending_gripper = None
         self.limits_off = False         # L2 segurado
         self.next_command_at = 0.0
@@ -204,17 +205,15 @@ class Session:
     def gripper_commands(self):
         """Botoes da garra. Devolve o angulo pedido, ou None."""
         if self.pressed(BTN_SQUARE):
-            target = self.next_gripper
-            self.next_gripper = (
-                self.gripper_shut if target == self.gripper_open
-                else self.gripper_open
-            )
-            return target
+            # Para o extremo em que a garra nao esta. Da pose inicial (garra
+            # no repouso, que hoje coincide com o minimo) o primeiro toque ja
+            # vai ao outro extremo; nao ha alvo interno para ficar defasado.
+            at = self.angles[GRIPPER]
+            return self.gripper_max if at != self.gripper_max else self.gripper_min
 
         if self.pressed(BTN_TRIANGLE):
-            # So tem efeito com a garra fechada; alivia a pressao sem abrir.
-            if self.angles[GRIPPER] == self.gripper_shut:
-                self.next_gripper = self.gripper_open
+            # Volta ao repouso a partir de qualquer extremo.
+            if self.angles[GRIPPER] != self.gripper_rest:
                 return self.gripper_rest
         return None
 

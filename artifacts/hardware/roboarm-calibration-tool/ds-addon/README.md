@@ -51,8 +51,8 @@ inteiro sem energizar nada.
 | R1 + analógico direito | alcance: baixo aumenta, cima diminui |
 | L1 (segurando) | precisão: passo de 1 grau, 200 ms entre comandos |
 | L2 (segurando) | desativa os limites calibrados; vale só a faixa 0-180 |
-| Quadrado | alterna a garra entre o mínimo e o máximo (hoje 82 fechada, 120 aberta) |
-| Triângulo | garra vai ao centro a partir do máximo; com centro = fechada, equivale a fechar |
+| Quadrado | garra vai ao extremo em que não está (hoje 82 fechada, 120 aberta); da pose inicial, o primeiro toque abre |
+| Triângulo | garra volta ao repouso, de qualquer extremo (hoje repouso = 82 = fechada) |
 
 Sem L1, o passo é de 2 graus e a cadência acompanha a confirmação do firmware
 (~64 ms por passo, ~30 graus/s). O clamp para exatamente no limite: se faltar
