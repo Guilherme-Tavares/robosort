@@ -6,6 +6,10 @@
 // ensaiar o ciclo de preensao. Varias juntas ficam energizadas ao mesmo tempo;
 // uma delas e a ativa, alvo de + e -. Energizacao sem salto, movimento
 // interpolado e interrompivel a qualquer instante.
+//
+// Tambem ensaia a zona de separacao (sensor IR + servo empurrador) com o
+// mesmo ciclo do robosort-firmware: 'mv norte <id>' energiza o empurrador na
+// pre-posicao do sentido, arma o sensor e, na deteccao, empurra e volta.
 
 #define PCA_ADDR    0x40
 #define BASE_CH     1
@@ -34,6 +38,26 @@
 #define SUBSTEPS    4    // subpassos por grau
 
 #define LINE_MAX    32
+
+// ------------------------------------------------------- zona de separacao
+// Espelho de robosort-firmware/config.h (secao Separacao). Ao ajustar la,
+// ajuste aqui. Sensor FC-51: LOW = obstaculo. O empurrador tem interpolador
+// proprio, na velocidade do module-tester (4 ms/grau), independente do braco.
+// Ciclo: pre-posicao -> armado -> DET -> latencia -> empurrao -> segura ->
+// volta a pre-posicao -> assenta -> PUSHED. ID par = cw, impar = ccw.
+#define ZONE_NAME          "norte"
+#define IR_PIN             2
+#define PUSHER_CH          8
+#define IR_DEBOUNCE_MS     20
+#define PUSHER_STEP_DELAY  4      // ms entre subpassos
+#define PUSHER_SUBSTEPS    1      // subpassos por grau
+#define PUSHER_DET_DELAY_MS 400  // da deteccao ao inicio do empurrao (caixinha chega ao empurrador)
+#define PUSHER_HOLD_MS     1000   // segura o empurrao antes de voltar
+#define PUSHER_SETTLE_MS   200    // assentamento na volta, antes do PUSHED
+#define PUSHER_PRE_CW      0
+#define PUSHER_PRE_CCW     180
+#define PUSHER_PUSH_CW     180
+#define PUSHER_PUSH_CCW    0
 
 const char* names[]    = {"base", "garra", "altura", "alcance"};
 const char* alias1[]   = {"b",    "g",     "al",     "ac"};
@@ -84,6 +108,21 @@ unsigned long lastStepAt = 0;
 // Buffer da leitura serial nao bloqueante
 char lineBuf[LINE_MAX];
 byte lineLen = 0;
+
+// Estado do empurrador e do ciclo da zona. Independente da junta ativa e de
+// 'moving': o braco pode se mover com o sensor armado, como em producao.
+enum PusherPhase { P_IDLE, P_PREP, P_ARMED, P_WAITING, P_PUSHING, P_HOLDING, P_RETURNING, P_SETTLING };
+PusherPhase pPhase   = P_IDLE;
+bool pLive    = false;      // ja recebeu pulso; pAngle e a posicao real
+int  pAngle   = PUSHER_PRE_CW;
+bool pCw      = true;
+int  pPre     = PUSHER_PRE_CW;
+int  pPush    = PUSHER_PUSH_CW;
+bool pMoving  = false;
+int  pFrom, pTo, pStep, pTotal;
+unsigned long pLastAt   = 0;
+unsigned long pPhaseAt  = 0;   // inicio da espera (latencia, segura, assenta)
+unsigned long pLowSince = 0;   // debounce do sensor
 
 // ------------------------------------------------------------------- servos
 
@@ -186,6 +225,7 @@ void releaseJoint(int j) {
 void releaseAll() {
   abortMove();
   for (int i = 0; i < JOINT_COUNT; i++) if (liveAt[i]) releaseJoint(i);
+  if (pLive || pPhase != P_IDLE) pusherRelease();
   current = -1;
   Serial.println(F(">> TUDO SOLTO."));
 }
@@ -206,6 +246,174 @@ void home() {
   }
   Serial.println();
   Serial.println(F("   confira se o braco esta mesmo assim antes do primeiro 'mv'"));
+}
+
+// --------------------------------------------------------------- empurrador
+
+void pusherWrite(int angle) {
+  pwm.writeMicroseconds(PUSHER_CH, map(angle, 0, 180, PULSE_MIN_US, PULSE_MAX_US));
+}
+
+int pusherEased(int stepIndex) {
+  float t = (float)stepIndex / pTotal;
+  float eased = t * t * (3.0f - 2.0f * t);
+  return pFrom + (int)((pTo - pFrom) * eased);
+}
+
+// Como em producao: sem pulso ainda, declara no alvo e energiza ali, num
+// pulso so (sem carga, um salto e inofensivo). Com pulso, interpola.
+void pusherStartMove(int target) {
+  if (!pLive) {
+    pusherWrite(target);
+    pAngle  = target;
+    pLive   = true;
+    pMoving = false;
+    return;
+  }
+  if (target == pAngle) { pMoving = false; return; }
+  pFrom   = pAngle;
+  pTo     = target;
+  pTotal  = abs(pTo - pFrom) * PUSHER_SUBSTEPS;
+  pStep   = 0;
+  pLastAt = millis();
+  pMoving = true;
+}
+
+void pusherPrint(const __FlashStringHelper* what) {
+  Serial.print(F(">> ")); Serial.print(F(ZONE_NAME)); Serial.print(' '); Serial.println(what);
+}
+
+// 'mv norte <id|cw|ccw>': energiza na pre-posicao do sentido, arma o sensor
+// e deixa o ciclo correr sozinho em pusherUpdate().
+void pusherCycle(bool cw) {
+  if (!pcaOk) { Serial.println(F("!! PCA9685 nao respondeu no boot; confira I2C e reinicie")); return; }
+  if (pPhase != P_IDLE) {
+    Serial.print(F("!! ")); Serial.print(F(ZONE_NAME));
+    Serial.println(F(" em ciclo; use 'stop'"));
+    return;
+  }
+  // Sensor ja em obstaculo: o empurrao sairia agora, antes da caixinha.
+  // Sensibilidade alta demais (ve a esteira) ou pino solto.
+  if (digitalRead(IR_PIN) == LOW) {
+    Serial.println(F("!! sensor ja em obstaculo; ajuste o trimpot ou confira o pino"));
+    return;
+  }
+  pCw   = cw;
+  pPre  = cw ? PUSHER_PRE_CW  : PUSHER_PRE_CCW;
+  pPush = cw ? PUSHER_PUSH_CW : PUSHER_PUSH_CCW;
+  pusherStartMove(pPre);
+  pPhase = P_PREP;
+  Serial.print(F(">> ")); Serial.print(F(ZONE_NAME));
+  Serial.print(cw ? F(" cw: ") : F(" ccw: "));
+  Serial.print(pPre); Serial.print(F(" -> ")); Serial.print(pPush);
+  Serial.print(F(" -> ")); Serial.println(pPre);
+}
+
+// Avanca a interpolacao e a maquina de fases. Nao bloqueia.
+void pusherUpdate() {
+  unsigned long now = millis();
+
+  if (pMoving && now - pLastAt >= PUSHER_STEP_DELAY) {
+    pLastAt = now;
+    pStep++;
+    pusherWrite(pusherEased(pStep));
+    if (pStep >= pTotal) {
+      pusherWrite(pTo);
+      pAngle  = pTo;
+      pMoving = false;
+    }
+  }
+
+  switch (pPhase) {
+    case P_IDLE:
+      break;
+
+    case P_PREP:
+      if (pMoving) break;
+      pLowSince = 0;
+      pPhase    = P_ARMED;
+      Serial.print(F(">> ")); Serial.print(F(ZONE_NAME));
+      Serial.print(F(" em ")); Serial.print(pAngle);
+      Serial.println(F(", sensor armado: passe a caixinha"));
+      break;
+
+    case P_ARMED:
+      if (digitalRead(IR_PIN) != LOW) { pLowSince = 0; break; }
+      if (pLowSince == 0) { pLowSince = now; break; }
+      if (now - pLowSince < IR_DEBOUNCE_MS) break;
+      Serial.print(F("DET ")); Serial.println(F(ZONE_NAME));
+      pPhaseAt = now;
+      pPhase   = P_WAITING;
+      break;
+
+    case P_WAITING:
+      if (now - pPhaseAt < PUSHER_DET_DELAY_MS) break;
+      pusherStartMove(pPush);
+      pPhase = P_PUSHING;
+      break;
+
+    case P_PUSHING:
+      if (pMoving) break;
+      pPhaseAt = now;
+      pPhase   = P_HOLDING;
+      break;
+
+    case P_HOLDING:
+      if (now - pPhaseAt < PUSHER_HOLD_MS) break;
+      pusherStartMove(pPre);
+      pPhase = P_RETURNING;
+      break;
+
+    case P_RETURNING:
+      if (pMoving) break;
+      pPhaseAt = now;
+      pPhase   = P_SETTLING;
+      break;
+
+    case P_SETTLING:
+      if (now - pPhaseAt < PUSHER_SETTLE_MS) break;
+      pPhase = P_IDLE;
+      Serial.print(F("PUSHED ")); Serial.println(F(ZONE_NAME));
+      Serial.print(F(">> ")); Serial.print(F(ZONE_NAME));
+      Serial.print(F(" de volta em ")); Serial.println(pAngle);
+      break;
+  }
+}
+
+// 'stop': desarma e para o empurrador onde estiver, energizado.
+void pusherAbort() {
+  if (pPhase == P_IDLE) return;
+  if (pMoving) { pAngle = pusherEased(pStep); pMoving = false; }
+  pPhase = P_IDLE;
+  Serial.print(F("!! ")); Serial.print(F(ZONE_NAME));
+  Serial.print(F(" ciclo abortado em ")); Serial.println(pAngle);
+}
+
+void pusherRelease() {
+  pusherAbort();
+  if (pLive) pwm.setPin(PUSHER_CH, 0);
+  pLive = false;
+  Serial.print(F(">> ")); Serial.print(F(ZONE_NAME)); Serial.println(F(" SOLTO"));
+}
+
+void printPusherLine() {
+  Serial.print(F("  ")); Serial.print(F(ZONE_NAME)); Serial.print(F("\t"));
+  if (pLive) Serial.print(pAngle); else Serial.print(F("?"));
+  Serial.print(F("\t"));
+  switch (pPhase) {
+    case P_IDLE:      Serial.print(pLive ? F("energizado") : F("solto")); break;
+    case P_PREP:      Serial.print(F("PRE-POSICAO"));  break;
+    case P_ARMED:     Serial.print(F("ARMADO"));       break;
+    case P_WAITING:   Serial.print(F("LATENCIA"));     break;
+    case P_PUSHING:   Serial.print(F("EMPURRANDO"));   break;
+    case P_HOLDING:   Serial.print(F("SEGURANDO"));    break;
+    case P_RETURNING: Serial.print(F("VOLTANDO"));     break;
+    case P_SETTLING:  Serial.print(F("ASSENTANDO"));   break;
+  }
+  if (pPhase != P_IDLE) Serial.print(pCw ? F(" cw") : F(" ccw"));
+  Serial.print(F("\tcw ")); Serial.print(PUSHER_PRE_CW); Serial.print(F("->")); Serial.print(PUSHER_PUSH_CW);
+  Serial.print(F("  ccw ")); Serial.print(PUSHER_PRE_CCW); Serial.print(F("->")); Serial.print(PUSHER_PUSH_CCW);
+  Serial.print(F("  sensor ")); Serial.println(digitalRead(IR_PIN) == LOW ? F("OBSTACULO") : F("livre"));
 }
 
 // ------------------------------------------------------------------ relatos
@@ -233,6 +441,10 @@ void dumpAll() {
   Serial.println(F("  nome\tang\testado\tlimites"));
   for (int i = 0; i < JOINT_COUNT; i++) printJointLine(i);
   Serial.println();
+  Serial.println(F("=== empurrador ==="));
+  Serial.println(F("  zona\tang\testado\tposicoes"));
+  printPusherLine();
+  Serial.println();
 }
 
 void report() {
@@ -247,9 +459,11 @@ void help() {
   Serial.println(F("  set <j> <ang>  declara onde a junta esta AGORA (nao move)"));
   Serial.println(F("  sel <j>        torna ativa e informa o angulo atual (nao move)"));
   Serial.println(F("  mv <j> <ang>   torna ativa, energiza sem salto e vai ate <ang>"));
+  Serial.println(F("  mv norte <id>  ciclo da zona: pre-posicao, arma o sensor, empurra e volta"));
+  Serial.println(F("                 (id par = cw, impar = ccw; aceita 'cw'/'ccw' direto)"));
   Serial.println(F("  + / -          move a junta ativa (garra 1 grau, demais 2)"));
-  Serial.println(F("  stop           interrompe o movimento, mantem energizado"));
-  Serial.println(F("  off [<j>]      solta a junta indicada, ou a ativa"));
+  Serial.println(F("  stop           interrompe movimento e ciclo da zona, mantem energizado"));
+  Serial.println(F("  off [<j>]      solta a junta indicada (ou 'norte'), ou a ativa"));
   Serial.println(F("  offall         solta todas as juntas (panico)"));
   Serial.println(F("  min / max      registra o angulo atual como limite da junta"));
   Serial.println(F("  dump           tabela de todas as juntas"));
@@ -316,7 +530,7 @@ void handleCommand(char* cmd) {
 
   // Comandos sempre aceitos, inclusive durante movimento
   if (!strcmp(cmd, "offall")) { releaseAll(); return; }
-  if (!strcmp(cmd, "stop"))   { abortMove();  return; }
+  if (!strcmp(cmd, "stop"))   { abortMove(); pusherAbort(); return; }
   if (!strcmp(cmd, "dump"))   { dumpAll();    return; }
   if (!strcmp(cmd, "?"))      { report();     return; }
   if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) { help(); return; }
@@ -330,6 +544,7 @@ void handleCommand(char* cmd) {
   if (startsWith(cmd, "off ")) {
     char* n = cmd + 4;
     while (*n == ' ') n++;
+    if (!strcmp(n, ZONE_NAME)) { pusherRelease(); return; }
     int j = findJoint(n);
     if (j < 0) { Serial.println(F("!! junta invalida")); return; }
     releaseJoint(j);
@@ -355,6 +570,19 @@ void handleCommand(char* cmd) {
   if (!strcmp(cmd, "home")) {
     if (moving) { Serial.println(F("!! em movimento; use 'stop'")); return; }
     home();
+    return;
+  }
+
+  // Ciclo da zona de separacao. Antes da trava de 'moving': o empurrador e
+  // independente do braco, e em producao o sensor fica armado enquanto o
+  // braco entrega e volta a HOME.
+  if (startsWith(cmd, "mv " ZONE_NAME)) {
+    char* arg = cmd + 3 + strlen(ZONE_NAME);
+    while (*arg == ' ') arg++;
+    if      (!strcmp(arg, "cw"))  pusherCycle(true);
+    else if (!strcmp(arg, "ccw")) pusherCycle(false);
+    else if (isDigit(arg[0]))      pusherCycle(atoi(arg) % 2 == 0);
+    else Serial.println(F("!! uso: mv norte <id|cw|ccw>"));
     return;
   }
 
@@ -436,6 +664,7 @@ void pollSerial() {
 
 void setup() {
   Serial.begin(115200);
+  pinMode(IR_PIN, INPUT);
   for (int i = 0; i < JOINT_COUNT; i++) {
     angles[i]     = centers[i];
     declaredAt[i] = false;
@@ -468,4 +697,5 @@ void setup() {
 void loop() {
   pollSerial();
   updateMove();
+  pusherUpdate();
 }

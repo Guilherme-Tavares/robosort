@@ -26,6 +26,7 @@ struct Mover {
   int           from, to, step, total;
   unsigned long lastAt;
   unsigned long arrivedAt;    // 0 = nada pendente apos a chegada
+  unsigned long detectedAt;   // DET emitido, empurrao ainda nao iniciado (0 = nenhum)
   int           returnTo;     // empurrao autonomo: pre-posicao a que volta (-1 = nao volta)
 };
 
@@ -70,9 +71,10 @@ void Sorting::begin() {
     pinMode(zones[z].irPin, INPUT);
     armed[z]    = false;
     lowSince[z] = 0;
-    mover[z].moving    = false;
-    mover[z].arrivedAt = 0;
-    mover[z].returnTo  = -1;
+    mover[z].moving     = false;
+    mover[z].arrivedAt  = 0;
+    mover[z].detectedAt = 0;
+    mover[z].returnTo   = -1;
   }
 }
 
@@ -161,15 +163,22 @@ Sorting::Event Sorting::poll() {
       }
     }
 
+    // Latencia entre DET e empurrao: a caixinha ainda anda do sensor ate a
+    // frente do empurrador.
+    if (m.detectedAt && now - m.detectedAt >= PUSHER_DET_DELAY_MS) {
+      m.detectedAt = 0;
+      if (commanded == z) commanded = -1;       // o empurrao autonomo prevalece
+      start(z, armedCw[z] ? zones[z].pushCw : zones[z].pushCcw, true);
+      m.returnTo = armedCw[z] ? zones[z].preCw : zones[z].preCcw;
+      if (!m.moving) m.arrivedAt = now ? now : 1; // ja estava la
+    }
+
     if (!armed[z]) continue;
     if (digitalRead(zones[z].irPin) != LOW) { lowSince[z] = 0; continue; }
     if (lowSince[z] == 0) { lowSince[z] = now; continue; }
     if (now - lowSince[z] >= IR_DEBOUNCE_MS) {
       armed[z] = false;
-      if (commanded == z) commanded = -1;       // o empurrao autonomo prevalece
-      start(z, armedCw[z] ? zones[z].pushCw : zones[z].pushCcw, true);
-      m.returnTo = armedCw[z] ? zones[z].preCw : zones[z].preCcw;
-      if (!m.moving) m.arrivedAt = now ? now : 1; // ja estava la
+      m.detectedAt = now ? now : 1;
       Serial.print(F("DET ")); Serial.println(zones[z].name);
     }
   }

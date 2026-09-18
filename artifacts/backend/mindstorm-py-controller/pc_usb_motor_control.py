@@ -1,7 +1,43 @@
+r"""Controle manual da esteira LEGO pelo EV3, via USB (porta PC do brick).
+
+    ..\.venv\Scripts\python pc_usb_motor_control.py     (venv de artifacts/backend)
+
+No Windows o EV3 e um dispositivo HID e o pyusb/libusb que o ev3_dc usa fora
+do macOS nao consegue escrever nele (Errno 5). O ev3_dc ja tem um caminho por
+hidapi, preso ao macOS; _use_hidapi() o liga no Windows, sem trocar driver.
+Mesma solucao de orchestrator/ev3_io.py.
+"""
+
+import platform
 from time import sleep
 
 import ev3_dc as ev3
-import usb.core
+import ev3_dc.ev3 as ev3_module
+
+
+def _use_hidapi():
+    if platform.system() != "Windows":
+        return
+    import hid  # pip install hidapi
+
+    class HidDevice(hid.device):
+        def write(self, data):           # Windows exige o report ID (0x00) na frente
+            return super().write(b"\x00" + bytes(data))
+
+    class HidShim:
+        enumerate = staticmethod(hid.enumerate)
+        device = HidDevice
+
+    class DarwinShim:
+        @staticmethod
+        def system():
+            return "Darwin"
+
+    ev3_module.hid = HidShim
+    ev3_module.platform = DarwinShim
+
+
+_use_hidapi()
 
 
 _original_motor_del = ev3.Motor.__del__
@@ -17,8 +53,8 @@ def _safe_motor_del(self):
 ev3.Motor.__del__ = _safe_motor_del
 
 PORT = ev3.PORT_A  # Aceita ev3.PORT_A, ev3.PORT_B, ev3.PORT_C ou ev3.PORT_D.
-speed = 30  # Aceita inteiros de 1 ate 100; representa porcentagem da velocidade.
-direction = 1  # Aceita 1 para horario ou -1 para anti-horario.
+speed = 10  # Aceita inteiros de 1 ate 100; representa porcentagem da velocidade.
+direction = -1  # Aceita 1 para horario ou -1 para anti-horario. -1 leva ao sensor.
 is_running = False  # Aceita True para motor ligado ou False para motor desligado.
 
 MIN_SPEED = 10
@@ -52,22 +88,15 @@ def print_status():
 
 
 def apply_motor_state(motor):
+    # start_move recusa movimento em curso: para trocar velocidade ou sentido
+    # com o motor ligado, solta e rearranca com rampa de 1 s.
+    motor.stop(brake=not is_running)
     if is_running:
-        motor.start_move(speed=speed, direction=direction)
-    else:
-        motor.stop(brake=True)
+        motor.start_move(speed=speed, direction=direction, ramp_up_time=1.0)
 
 
 def main():
     global speed, direction, is_running
-
-    try:
-        usb.core.find()
-    except usb.core.NoBackendError:
-        print("Erro: o PyUSB nao encontrou um backend USB no Windows.")
-        print("Instale/configure o libusb antes de tentar conectar ao EV3.")
-        print("Veja o arquivo PASSO_A_PASSO_EV3_USB_PC.md, secao de solucao de problemas.")
-        return
 
     print("Conecte o EV3 ao computador pela porta USB marcada como PC.")
     print("Mantenha o EV3 ligado no sistema original LEGO EV3.")

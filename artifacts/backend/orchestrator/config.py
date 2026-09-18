@@ -65,7 +65,8 @@ PREP_SETTLE_DELAY = 1.0       # depois de o empurrador chegar a pre-posicao
 # ---- Separacao ----
 ZONE = "norte"                # unica zona nesta fase
 DET_TIMEOUT = 60.0            # espera pela passagem da caixinha no sensor
-PUSH_DELAY_AFTER_DET = 0.0    # s entre DET e push, se o sensor estiver antes do empurrador
+# A latencia entre DET e empurrao e do firmware (PUSHER_DET_DELAY_MS): quem
+# empurra na deteccao e ele, sem passar pelo PC.
 
 # ---- Esteira (EV3) ----
 EV3_PORT = "A"                # porta do motor no brick

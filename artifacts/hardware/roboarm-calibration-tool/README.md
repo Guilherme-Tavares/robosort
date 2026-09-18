@@ -4,8 +4,9 @@ Ferramenta de calibração do braço robótico MDF (kit genérico, 4 servos SG90
 sobre Arduino Uno R3, com os servos acionados por um PCA9685 via I²C.
 
 Serve para **mapear os limites mecânicos das juntas** e ensaiar o ciclo de
-preensão antes do firmware de produção. É descartável por natureza: o propósito
-é produzir números.
+preensão antes do firmware de produção. Também ensaia a **zona de separação**
+(sensor IR + servo empurrador) com o mesmo ciclo do `robosort-firmware`. É
+descartável por natureza: o propósito é produzir números.
 
 ## Estrutura
 
@@ -29,7 +30,7 @@ arduino-cli compile --fqbn arduino:avr:uno calibration-tool
 
 A pasta precisa ter o mesmo nome do `.ino`, exigência do Arduino IDE.
 
-Ocupa ~12,9 KB de flash (40%) e 646 bytes de RAM (31%) no Uno.
+Ocupa ~15,7 KB de flash (49%) e 694 bytes de RAM (33%) no Uno.
 
 ## Monitor Serial
 
@@ -49,6 +50,10 @@ entre Arduino, módulo e fonte.
 | Altura | 5 |
 | Alcance | 0 |
 | Garra | 4 |
+| Empurrador `norte` | 8 |
+
+O sensor IR (FC-51, `LOW` = obstáculo) da zona `norte` vai no **pino digital
+2** do Uno.
 
 ## Largura de pulso e oscilador
 
@@ -80,11 +85,13 @@ set <j> <ang>    declara onde a junta está AGORA (não move, não energiza)
 sel <j>          torna ativa e informa o ângulo atual (não move)
 mv <j> <ang>     torna ativa, energiza sem salto e vai suave até <ang>
 + / -            move a junta ativa (garra 1 grau, demais 2)
-stop             interrompe o movimento, mantém energizado
-off [<j>]        solta a junta indicada, ou a ativa
+mv norte <id>    ciclo da zona: pré-posição, arma o sensor, empurra e volta
+                 (id par = cw, ímpar = ccw; aceita `cw`/`ccw` direto)
+stop             interrompe o movimento e o ciclo da zona, mantém energizado
+off [<j>]        solta a junta indicada (ou `norte`), ou a ativa
 offall           solta todas as juntas (pânico)
 min / max        registra o ângulo atual como limite da junta ativa
-dump             tabela de todas as juntas
+dump             tabela de todas as juntas e do empurrador
 ? / h            estado da junta ativa / ajuda
 ```
 
@@ -117,6 +124,44 @@ Se o braço não estiver nos centros (foi movido com a mão, houve `offall`, ou
 reset por brownout), declare cada junta com `set <junta> <ângulo>` antes do
 primeiro `mv`. O firmware recusa mover uma junta de posição desconhecida em vez
 de assumir um valor e arriscar o salto.
+
+## Zona de separação
+
+`mv norte <id>` executa, na bancada, o ciclo que o `robosort-firmware` faz
+em produção (`prep` → `arm` → `DET` → empurrão → `PUSHED`), com as mesmas
+constantes — copiadas de `robosort-firmware/config.h` para o bloco *zona de
+separacao* do sketch; ao ajustar lá, ajuste aqui. O sentido vem da paridade
+do ID, como no roteamento provisório do orquestrador: **par = cw, ímpar =
+ccw**.
+
+```
+mv norte 10        >> norte cw: 60 -> 120 -> 60
+                   >> norte em 60, sensor armado: passe a caixinha
+                   ... caixinha passa no sensor ...
+                   DET norte
+                   (espera 1 s, vai a 120, segura 1 s, volta a 60, assenta 200 ms)
+                   PUSHED norte
+                   >> norte de volta em 60
+```
+
+Fases: energiza o empurrador **direto na pré-posição** do sentido (sem
+pulso ainda, um pulso só; com pulso, interpola a 4 ms/grau) → arma o sensor
+→ na detecção (`IR_DEBOUNCE_MS` de nível baixo) espera `PUSHER_DET_DELAY_MS`
+(a caixinha anda do sensor até o empurrador) → vai à posição de empurrão →
+segura `PUSHER_HOLD_MS` → volta à pré-posição → assenta `PUSHER_SETTLE_MS`
+→ `PUSHED`. O empurrador termina onde começou.
+
+O comando é recusado se o sensor **já** estiver em obstáculo (`!! sensor ja
+em obstaculo`): é o sintoma de trimpot alto demais (o sensor vê a esteira) ou
+de pino solto, e sem essa recusa o empurrão sairia na hora, antes da
+caixinha. O `dump` mostra a leitura instantânea do sensor na linha do
+empurrador (`sensor livre` / `OBSTACULO`), útil para ajustar o trimpot.
+
+O empurrador é **independente do braço**: tem interpolador próprio, não
+entra em `moving`, e `mv norte` é aceito com o braço em movimento — em
+produção o sensor fica armado enquanto o braço entrega e volta a HOME. `stop`
+desarma e para o empurrador onde estiver, energizado; `off norte` e `offall`
+o soltam. O ds-addon ignora a seção do empurrador no `dump`.
 
 ## Garantias do firmware
 

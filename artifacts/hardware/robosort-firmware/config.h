@@ -107,8 +107,9 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // module-tester, validada em bancada: rapida, mas suave no arranque e na
 // chegada, para empurrar a caixinha em vez de lanca-la.
 // Fluxo por caixinha: 'prep' (declara e energiza na pre-posicao do sentido
-// decidido) -> braco entrega -> 'arm' quando a garra abre -> DET -> empurrao
-// -> segura PUSHER_HOLD_MS -> volta a pre-posicao -> assenta -> PUSHED.
+// decidido) -> braco entrega -> 'arm' quando a garra abre -> DET -> espera
+// PUSHER_DET_DELAY_MS -> empurrao -> segura PUSHER_HOLD_MS -> volta a
+// pre-posicao -> assenta -> PUSHED.
 // Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
 #if ENABLE_SORTING
   #define PIN_IR_NORTE         2     // pino digital do Uno; A4/A5 sao o I2C
@@ -116,14 +117,15 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
   #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
   #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
+  #define PUSHER_DET_DELAY_MS  400   // da deteccao ao inicio do empurrao: a caixinha anda do sensor ao empurrador
   #define PUSHER_HOLD_MS       1000  // segura o empurrao antes de voltar a pre-posicao
   #define PUSHER_SETTLE_MS     200   // assentamento na volta, antes do PUSHED
 
   // Posicoes do empurrador, validadas em bancada. O repouso e a pre-posicao
   // do sentido horario.
-  #define PUSHER_NEUTRAL     120   // repouso; 'rest' e 'home' levam aqui (= PRE_CW)
-  #define PUSHER_PRE_CW      60   // pre-posicao para empurrar em sentido horario
-  #define PUSHER_PRE_CCW     120    // pre-posicao para anti-horario
-  #define PUSHER_PUSH_CW     120    // empurrao horario: 60 -> 120
-  #define PUSHER_PUSH_CCW    60   // empurrao anti-horario: 120 -> 60
+  #define PUSHER_NEUTRAL     0   // repouso; 'rest' e 'home' levam aqui (= PRE_CW)
+  #define PUSHER_PRE_CW      0   // pre-posicao para empurrar em sentido horario
+  #define PUSHER_PRE_CCW     180    // pre-posicao para anti-horario
+  #define PUSHER_PUSH_CW     180    // empurrao horario: 0 -> 180
+  #define PUSHER_PUSH_CCW    0   // empurrao anti-horario: 180 -> 0
 #endif
