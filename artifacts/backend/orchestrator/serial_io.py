@@ -37,6 +37,7 @@ EVENTS = ("DET", "PUSHED")
 STATE_RE = re.compile(r"STATE (\w+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
 CORNER_RE = re.compile(r"CORNER (\d) (\d+) (\d+) (\d+)$")
 APPROACH_RE = re.compile(r"APPROACH (\d+) (\d+)$")
+DROP_RE = re.compile(r"DROP (\d+) (\d+) (\d+)$")
 GRIPPER_RE = re.compile(r"GRIPPER (\d+) (\d+)$")
 
 
@@ -87,6 +88,7 @@ class ArmConfig:
     gripper: dict       # {"open", "closed"}: angulos proprios, nao os limites
     corners: dict       # k -> {"base", "altura", "alcance"}
     approach: dict      # {"altura", "alcance"}
+    drop: dict          # {"base", "alcance", "altura"}: soltura, apos DELIVERY
 
     def limits(self, joint):
         j = self.joints[joint]
@@ -140,7 +142,13 @@ class Arduino:
         port = find_port(self.port_hint)
         if port is None:
             raise ArduinoError("Arduino nao encontrado. Conecte o USB ou passe --port COMx.")
-        self.serial = serial.Serial(port, config.BAUD, timeout=0.05)
+        try:
+            self.serial = serial.Serial(port, config.BAUD, timeout=0.05)
+        except serial.SerialException as exc:
+            if isinstance(exc.__context__, PermissionError) or "Access is denied" in str(exc):
+                raise ArduinoError(f"{port} em uso por outro programa (Monitor Serial do "
+                                   f"Arduino IDE, outro console?). Feche-o e tente de novo.") from exc
+            raise ArduinoError(f"nao abriu {port}: {exc}") from exc
         self._stop.clear()
         self._reader = threading.Thread(target=self._read_loop, name="serial-reader", daemon=True)
         self._reader.start()
@@ -343,7 +351,7 @@ class Arduino:
         if gripper is None:
             raise ArduinoError("'dump' nao trouxe GRIPPER (aberta fechada)")
 
-        corners, approach = {}, None
+        corners, approach, drop = {}, None, None
         for line in self.corners():
             m = CORNER_RE.match(line)
             if m:
@@ -353,10 +361,16 @@ class Arduino:
             m = APPROACH_RE.match(line)
             if m:
                 approach = {"altura": int(m.group(1)), "alcance": int(m.group(2))}
-        if sorted(corners) != [0, 1, 2, 3] or approach is None:
-            raise ArduinoError("'corners' incompleto: esperados CORNER 0-3 e APPROACH")
+                continue
+            m = DROP_RE.match(line)
+            if m:
+                base, alcance, altura = map(int, m.groups())
+                drop = {"base": base, "alcance": alcance, "altura": altura}
+        if sorted(corners) != [0, 1, 2, 3] or approach is None or drop is None:
+            raise ArduinoError("'corners' incompleto: esperados CORNER 0-3, APPROACH e DROP")
 
-        return ArmConfig(joints=joints, gripper=gripper, corners=corners, approach=approach)
+        return ArmConfig(joints=joints, gripper=gripper, corners=corners,
+                         approach=approach, drop=drop)
 
 
 # ------------------------------------------------------------------ REPL

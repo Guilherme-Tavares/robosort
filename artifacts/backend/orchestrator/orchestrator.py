@@ -85,13 +85,18 @@ class Arm:
         time.sleep(config.GRIP_HOLD_DELAY)
 
     def deliver(self):
-        """Mesma ordem de 'mv dest': alcance, altura, base; garra abre,
-        pausa, fecha, pausa, repousa."""
+        """Mesma ordem de 'mv dest': alcance, altura, base ate DELIVERY;
+        base, alcance, altura ate DROP; garra abre, pausa, fecha, pausa,
+        repousa."""
         d = self._pose("delivery")
+        drop = self.cfg.drop
         self.log("  deliver")
         self.mv("alcance", d["alcance"])
         self.mv("altura", d["altura"])
         self.mv("base", d["base"])
+        self.mv("base", drop["base"])
+        self.mv("alcance", drop["alcance"])
+        self.mv("altura", drop["altura"])
         self.mv("garra", self.gripper_open)
         time.sleep(config.GRIP_CLOSE_DELAY)
         self.mv("garra", self.gripper_closed)

@@ -62,6 +62,9 @@ void cornerLines() {
   }
   Serial.print(F("APPROACH ")); Serial.print(APPROACH_HEIGHT);
   Serial.print(' '); Serial.println(APPROACH_REACH);
+  Serial.print(F("DROP ")); Serial.print(DROP_BASE);
+  Serial.print(' '); Serial.print(DROP_REACH);
+  Serial.print(' '); Serial.println(DROP_HEIGHT);
 }
 
 // Linhas '#' sao para o operador; o orquestrador as ignora.
@@ -70,7 +73,7 @@ void help() {
   Serial.println(F("#   mv <j> <ang>     move ate <ang>"));
   Serial.println(F("#   mv <j>           mostra a junta e a torna ativa"));
   Serial.println(F("#   mv home          vai a HOME: base, altura, alcance, garra"));
-  Serial.println(F("#   mv dest          vai a DELIVERY: alcance, altura, base; garra abre, fecha, repousa"));
+  Serial.println(F("#   mv dest          vai a DELIVERY (alcance, altura, base), avanca a DROP (base, alcance, altura); garra abre, fecha, repousa"));
   Serial.println(F("#   mv area <0-3>    pega a caixinha no canto: base, garra abre, aproxima, desce, fecha"));
   Serial.println(F("#   sel <j>          torna a junta ativa e a mostra"));
   Serial.println(F("#   + / -            move a junta ativa (garra 1 grau, demais 2)"));
@@ -80,12 +83,12 @@ void help() {
   Serial.println(F("#   offall           solta todas (panico)"));
   Serial.println(F("#   stop             interrompe o movimento, mantem energizado"));
   Serial.println(F("#   dump / ?         STATE de todas as juntas (+ GRIPPER aberta fechada) / da ativa"));
-  Serial.println(F("#   corners          valores-guia dos cantos e aproximacao"));
+  Serial.println(F("#   corners          valores-guia dos cantos, aproximacao e soltura (DROP)"));
   Serial.println(F("#   ping             OK"));
   Serial.println(F("#   help / h         esta ajuda"));
 #if ENABLE_SORTING
   Serial.println(F("#   prep <zona> <cw|ccw>   empurrador na pre-posicao do sentido"));
-  Serial.println(F("#   arm <zona> <cw|ccw>    arma o sensor; na deteccao empurra sozinho (DET, PUSHED)"));
+  Serial.println(F("#   arm <zona> <cw|ccw>    arma o sensor; na deteccao empurra sozinho (DET, PUSHED); ERR sensor se ja ha obstaculo"));
   Serial.println(F("#   push <zona> <cw|ccw>   empurrao manual"));
   Serial.println(F("#   rest / disarm <zona>   empurrador ao neutro / desarma o sensor"));
 #endif
@@ -188,20 +191,24 @@ void moveHome() {
   run(s, 4);
 }
 
-// mv dest: alcance, altura, base; garra abre, 1 s, fecha, 1 s, repousa.
-// Leva a caixinha a esteira e a solta, deixando a garra fechada em repouso.
+// mv dest: alcance, altura, base ate DELIVERY; base, alcance, altura ate
+// DROP; garra abre, 1 s, fecha, 1 s, repousa. Leva a caixinha a esteira e a
+// solta, deixando a garra fechada em repouso.
 void moveDelivery() {
   Sequence::Step s[] = {
     { J_REACH,   (uint16_t)Joints::delivery(J_REACH)   },
     { J_HEIGHT,  (uint16_t)Joints::delivery(J_HEIGHT)  },
     { J_BASE,    (uint16_t)Joints::delivery(J_BASE)    },
+    { J_BASE,    DROP_BASE                             },
+    { J_REACH,   DROP_REACH                            },
+    { J_HEIGHT,  DROP_HEIGHT                           },
     { J_GRIPPER, GRIPPER_OPEN                          },
     { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                    },
     { J_GRIPPER, GRIPPER_CLOSED                        },
     { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                     },
     { J_GRIPPER, (uint16_t)Joints::delivery(J_GRIPPER) },
   };
-  run(s, 8);
+  run(s, 11);
 }
 
 // mv area <k>: base do canto, garra aberta, aproximacao (altura, alcance),
@@ -359,7 +366,10 @@ void handle(char* cmd) {
     if      (!strcmp(dir, "cw"))  cw = true;
     else if (!strcmp(dir, "ccw")) cw = false;
     else { err(F("sintaxe")); return; }
-    if (cmd[0] == 'a') { Sorting::arm(z, cw); ok(); return; }
+    if (cmd[0] == 'a') {
+      if (Sorting::arm(z, cw)) ok(); else err(F("sensor"));
+      return;
+    }
     if (!Joints::ready()) { err(F("pca")); return; }
     if (cmd[1] == 'r') Sorting::prep(z, cw); else Sorting::push(z, cw);
     awaitPusher();

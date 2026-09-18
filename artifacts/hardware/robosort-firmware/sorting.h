@@ -13,7 +13,8 @@
 //   prep  -> pre-posicao do sentido decidido (PUSHER_PRE_*)
 //   arm   -> sensor armado com o sentido
 //   DET   -> o firmware move o empurrador sozinho para PUSHER_PUSH_*,
-//            emite "DET <zona>" e, quando chegar e assentar, "PUSHED <zona>"
+//            emite "DET <zona>"; empurra, assenta, volta a pre-posicao do
+//            sentido e, assentado de novo, emite "PUSHED <zona>"
 //
 // O PC decide o sentido e le os eventos; nunca esta no caminho critico.
 
@@ -31,7 +32,8 @@ namespace Sorting {
   bool moving();                       // ha movimento comandado em curso
   void abort();                        // interrompe o comandado, registra onde parou
 
-  void arm(int zone, bool cw);         // arma o sensor com o sentido, uma deteccao
+  bool arm(int zone, bool cw);         // arma o sensor com o sentido, uma deteccao;
+                                       // false se o sensor ja esta em obstaculo
   void disarm(int zone);
   void disarmAll();                    // offall: nada pode empurrar sozinho depois
 

@@ -47,6 +47,7 @@ def show_config(cfg):
         c = cfg.corners[k]
         print(f"    [{k}] {c['base']:3d} {c['altura']:3d} {c['alcance']:3d}")
     print(f"  aproximacao: altura {cfg.approach['altura']} alcance {cfg.approach['alcance']}")
+    print(f"  soltura: base {cfg.drop['base']} alcance {cfg.drop['alcance']} altura {cfg.drop['altura']}")
     flags = [f for f in ("ENABLE_VISION", "ENABLE_LOCALIZATION", "ENABLE_CONVEYOR", "ENABLE_SORTING")
              if getattr(config, f)]
     print(f"  flags ativas: {', '.join(flags) or 'nenhuma'}; canto fixo {config.FIXED_CORNER}")
@@ -121,6 +122,11 @@ def main():
             print(f"  firmware pronto em {link.port}")
             cfg = link.read_config()
             show_config(cfg)
+            if config.ENABLE_SORTING and config.ZONE not in cfg.joints:
+                # Com sorting, o 'dump' lista o empurrador como junta da zona.
+                print(f"!! firmware sem separacao: 'dump' nao trouxe a junta '{config.ZONE}'. "
+                      f"Grave-o com ENABLE_SORTING 1 (config.h) ou desligue ENABLE_SORTING aqui.")
+                return 1
             arm = Arm(link, cfg)
 
             vision = None

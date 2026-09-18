@@ -41,6 +41,8 @@ python -m venv .venv          # em artifacts/backend
 .venv/Scripts/pip install -r orchestrator/requirements.txt
 ```
 
+EV3 pela USB (porta `PC` do brick, firmware LEGO original): no Windows o brick é um dispositivo HID e o `ev3_io.py` fala com ele por `hidapi`, sem trocar driver — nada de Zadig nem `libusb-1.0.dll`. Basta ligar o brick e conectar o cabo antes de abrir o console.
+
 ## Uso
 
 ```

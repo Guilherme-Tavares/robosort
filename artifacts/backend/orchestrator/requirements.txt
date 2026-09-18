@@ -2,3 +2,4 @@ pyserial>=3.5
 opencv-contrib-python==5.0.0.93
 numpy==2.5.2
 ev3_dc>=0.9
+hidapi>=0.14            # EV3 por HID no Windows (ver ev3_io.py)

@@ -25,7 +25,8 @@ struct Mover {
   bool          autonomous;   // disparado pelo sensor: no fim, PUSHED em vez de OK
   int           from, to, step, total;
   unsigned long lastAt;
-  unsigned long arrivedAt;    // 0 = sem PUSHED pendente
+  unsigned long arrivedAt;    // 0 = nada pendente apos a chegada
+  int           returnTo;     // empurrao autonomo: pre-posicao a que volta (-1 = nao volta)
 };
 
 Mover         mover[NZ];
@@ -70,6 +71,7 @@ void Sorting::begin() {
     lowSince[z] = 0;
     mover[z].moving    = false;
     mover[z].arrivedAt = 0;
+    mover[z].returnTo  = -1;
   }
 }
 
@@ -102,10 +104,16 @@ void Sorting::abort() {
   commanded = -1;
 }
 
-void Sorting::arm(int zone, bool cw) {
+// Recusa armar com o sensor ja em obstaculo: senao o empurrao sai no mesmo
+// loop(), antes de a caixinha existir, e o ciclo segue como se tivesse
+// dado certo. Sensor permanentemente em LOW e sensibilidade alta demais
+// (ve a esteira) ou pino solto; melhor acusar na hora.
+bool Sorting::arm(int zone, bool cw) {
+  if (digitalRead(zones[zone].irPin) == LOW) return false;
   armed[zone]    = true;
   armedCw[zone]  = cw;
   lowSince[zone] = 0;
+  return true;
 }
 
 void Sorting::disarm(int zone) { armed[zone] = false; }
@@ -135,9 +143,19 @@ Sorting::Event Sorting::poll() {
       }
     }
 
+    // Assentou: se foi a ida do empurrao, volta a pre-posicao; se foi a
+    // volta, PUSHED. O empurrador termina onde comecou, pronto para o
+    // proximo 'prep' do mesmo sentido sem se mover.
     if (m.arrivedAt && now - m.arrivedAt >= PUSHER_SETTLE_MS) {
       m.arrivedAt = 0;
-      Serial.print(F("PUSHED ")); Serial.println(zones[z].name);
+      if (m.returnTo >= 0) {
+        int back = m.returnTo;
+        m.returnTo = -1;
+        start(z, back, true);
+        if (!m.moving) m.arrivedAt = now ? now : 1;
+      } else {
+        Serial.print(F("PUSHED ")); Serial.println(zones[z].name);
+      }
     }
 
     if (!armed[z]) continue;
@@ -147,6 +165,7 @@ Sorting::Event Sorting::poll() {
       armed[z] = false;
       if (commanded == z) commanded = -1;       // o empurrao autonomo prevalece
       start(z, armedCw[z] ? zones[z].pushCw : zones[z].pushCcw, true);
+      m.returnTo = armedCw[z] ? zones[z].preCw : zones[z].preCcw;
       if (!m.moving) m.arrivedAt = now ? now : 1; // ja estava la
       Serial.print(F("DET ")); Serial.println(zones[z].name);
     }

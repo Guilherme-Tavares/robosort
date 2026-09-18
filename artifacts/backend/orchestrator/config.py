@@ -6,7 +6,7 @@ conexao ('dump' e 'corners'); fonte unica: robosort-firmware/config.h.
 """
 
 # ---- Flags ----
-ENABLE_VISION = True          # camera identifica o marcador da caixinha
+ENABLE_VISION = False          # camera identifica o marcador da caixinha
 ENABLE_LOCALIZATION = False   # visao localiza a caixinha e interpola o alvo;
                               # desligado: alvo fixo em FIXED_CORNER
 ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a esteira
@@ -14,7 +14,7 @@ ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a 
                               # a caixinha movida a mao ate o sensor)
 ENABLE_SORTING = True         # sensor IR + empurrador (firmware com ENABLE_SORTING=1)
 
-FIXED_CORNER = 0              # canto usado quando a localizacao esta desligada
+FIXED_CORNER = 3              # canto usado quando a localizacao esta desligada
 
 # ---- Serial ----
 BAUD = 115200
@@ -68,9 +68,9 @@ PUSH_DELAY_AFTER_DET = 0.0    # s entre DET e push, se o sensor estiver antes do
 
 # ---- Esteira (EV3) ----
 EV3_PORT = "A"                # porta do motor no brick
-CONVEYOR_SPEED = 30           # % ; arranque brusco derruba a caixinha
-CONVEYOR_DIRECTION = 1        # 1 horario, -1 anti-horario
-CONVEYOR_RAMP = 90            # graus de rampa de aceleracao e desaceleracao
+CONVEYOR_SPEED = 10           # % ; arranque brusco derruba a caixinha
+CONVEYOR_DIRECTION = -1       # 1 horario, -1 anti-horario
+CONVEYOR_RAMP_TIME = 1.0      # s de rampa de aceleracao (a parada e imediata)
 
 
 # ---- Roteamento provisorio (sem banco) ----

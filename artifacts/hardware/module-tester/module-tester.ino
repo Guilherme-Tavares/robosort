@@ -2,7 +2,7 @@
 #include <Adafruit_PWMServoDriver.h>
 
 #define IR_PIN 2
-#define SERVO_CHANNEL 5
+#define SERVO_CHANNEL 8
 
 // Calibração de pulso: ajustar conforme o servo
 #define SERVO_MIN 150

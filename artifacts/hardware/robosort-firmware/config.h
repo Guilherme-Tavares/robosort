@@ -10,7 +10,7 @@
 // Sobrescrevivel na linha de comando:
 //   arduino-cli compile --build-property "build.extra_flags=-DENABLE_SORTING=1" ...
 #ifndef ENABLE_SORTING
-#define ENABLE_SORTING 0     // 1 habilita sensor IR e servo empurrador
+#define ENABLE_SORTING 1     // 1 habilita sensor IR e servo empurrador
 #endif
 
 // ---- PCA9685 ----
@@ -63,7 +63,13 @@ static const int ARM_CENTER[ARM_JOINTS]   = {   98,    82,     91,      96 };
 // repouso depois de abrir e fechar.
 // Provisoriamente iguais aos centros. Ajustar em bancada.
 static const int ARM_HOME[ARM_JOINTS]     = {   18,    82,     91,      96 };
-static const int ARM_DELIVERY[ARM_JOINTS] = {   90,    82,    132,      60 };
+static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    101,      102 };
+
+// DROP: de DELIVERY, avanca ate o ponto de soltura sobre a esteira (base,
+// alcance, altura, nesta ordem) antes de abrir a garra.
+#define DROP_BASE    98
+#define DROP_REACH   98
+#define DROP_HEIGHT  92
 
 // ---- Area de aquisicao: valores-guia por canto ----
 // Base, altura e alcance para pegar a caixinha no centro de cada celula.
@@ -82,7 +88,7 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // ---- Movimento ----
 #define STEP_DELAY    8      // ms entre subpassos
 #define SUBSTEPS      4      // subpassos por grau (32 ms/grau, ~30 graus/s)
-#define SEQ_MAX_STEPS 10     // passos de uma sequencia (mv area e mv dest usam 8)
+#define SEQ_MAX_STEPS 12     // passos de uma sequencia (mv dest usa 11)
 
 // ---- Latencias de seguranca nas sequencias ----
 // Pausas em torno do fechamento da garra: antes, para o braco assentar;
@@ -100,19 +106,21 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // module-tester, validada em bancada: rapida, mas suave no arranque e na
 // chegada, para empurrar a caixinha em vez de lanca-la.
 // Fluxo por caixinha: 'prep' (pre-posicao do sentido decidido) -> 'arm'
-// (sensor armado com o sentido) -> DET -> empurrao -> PUSHED.
+// (sensor armado com o sentido) -> DET -> empurrao -> volta a pre-posicao
+// -> PUSHED. Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
 #if ENABLE_SORTING
   #define PIN_IR_NORTE         2     // pino digital do Uno; A4/A5 sao o I2C
   #define CH_PUSHER_NORTE      8     // empurradores a partir do canal 8
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
   #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
   #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
-  #define PUSHER_SETTLE_MS     200   // da chegada ao PUSHED
+  #define PUSHER_SETTLE_MS     200   // assentamento apos cada chegada (ida e volta)
 
-  // Posicoes do empurrador. A DEFINIR em bancada; placeholders.
-  #define PUSHER_NEUTRAL     90    // repouso; 'rest' e 'home' levam aqui
-  #define PUSHER_PRE_CW      90    // pre-posicao para empurrar em sentido horario (a principio = neutro)
-  #define PUSHER_PRE_CCW     90    // pre-posicao para anti-horario
-  #define PUSHER_PUSH_CW     30    // empurrao horario
-  #define PUSHER_PUSH_CCW    150   // empurrao anti-horario
+  // Posicoes do empurrador, validadas em bancada. O repouso e a pre-posicao
+  // do sentido horario.
+  #define PUSHER_NEUTRAL     120   // repouso; 'rest' e 'home' levam aqui (= PRE_CW)
+  #define PUSHER_PRE_CW      60   // pre-posicao para empurrar em sentido horario
+  #define PUSHER_PRE_CCW     120    // pre-posicao para anti-horario
+  #define PUSHER_PUSH_CW     120    // empurrao horario: 60 -> 120
+  #define PUSHER_PUSH_CCW    60   // empurrao anti-horario: 120 -> 60
 #endif
