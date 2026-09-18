@@ -95,14 +95,20 @@ class ArmConfig:
         return j.min, j.max
 
 
+ARDUINO_VIDS = (0x2341, 0x2A03, 0x1A86)   # Arduino, Arduino.org, CH340 (clones)
+
+
 def find_port(hint=None):
-    """Porta do Arduino. Ignora as portas Bluetooth do Windows."""
+    """Porta do Arduino. Ignora as portas Bluetooth do Windows. O Uno R4
+    aparece como 'USB Serial Device' generico; o VID e que o identifica."""
     if hint:
         return hint
     for port in list_ports.comports():
         text = f"{port.description} {port.manufacturer or ''}".lower()
         if "bluetooth" in text:
             continue
+        if port.vid in ARDUINO_VIDS:
+            return port.device
         if any(k in text for k in ("arduino", "ch340", "usb-serial", "usb serial")):
             return port.device
     return None
@@ -153,13 +159,32 @@ class Arduino:
         self._reader = threading.Thread(target=self._read_loop, name="serial-reader", daemon=True)
         self._reader.start()
 
-        # Abrir a porta reseta o Uno; o firmware anuncia READY ao fim do setup.
-        if not self._booted.wait(config.BOOT_TIMEOUT):
-            self.close()
-            raise ArduinoError(f"firmware nao respondeu em {config.BOOT_TIMEOUT:.0f} s na porta {port}")
-        if self._boot != "READY":
+        # Uno R3: abrir a porta reseta a placa e o firmware anuncia READY ao
+        # fim do setup. Uno R4 (USB nativo): abrir a porta NAO reseta; o READY
+        # do boot ja passou e se perdeu. Por isso, alem de esperar o READY,
+        # sonda-se com 'ping' a cada PROBE_INTERVAL: OK tambem vale como vivo.
+        # Depois, espera-se a serial silenciar, para nenhuma linha atrasada
+        # (banner tardio, OK de uma sonda a mais) parear com o primeiro comando.
+        deadline = time.monotonic() + config.BOOT_TIMEOUT
+        while not self._booted.is_set():
+            if time.monotonic() >= deadline:
+                self.close()
+                raise ArduinoError(f"firmware nao respondeu em {config.BOOT_TIMEOUT:.0f} s na porta {port}")
+            try:
+                self._write("ping")
+            except Disconnected:
+                self.close()
+                raise ArduinoError(f"porta {port} caiu durante a conexao")
+            self._booted.wait(config.PROBE_INTERVAL)
+        if self._boot.startswith("ERR"):
             self.close()
             raise ArduinoError(f"firmware sem PCA9685 ({self._boot}); confira I2C, VCC e GND")
+        self._settle()
+
+    def _settle(self):
+        """Espera a serial ficar RESYNC_QUIET sem linhas."""
+        while time.monotonic() - self._last_line_at < config.RESYNC_QUIET:
+            time.sleep(0.05)
 
     def close(self):
         self._stop.set()
@@ -200,8 +225,9 @@ class Arduino:
                 return
 
         if not self._booted.is_set():
-            # Antes de qualquer comando so pode vir o banner: READY ou ERR pca.
-            if line == "READY" or line.startswith("ERR"):
+            # Fase de conexao: READY (banner do reset, Uno R3), OK (resposta a
+            # uma sonda 'ping', Uno R4) ou ERR pca. O resto se ignora.
+            if line in ("READY", "OK") or line.startswith("ERR"):
                 self._boot = line
                 self._booted.set()
             return
@@ -282,8 +308,7 @@ class Arduino:
         """Depois de um AckTimeout: descarta pendentes, espera a serial
         silenciar e confirma com ping."""
         self._fail_all("descartado no resync")
-        while time.monotonic() - self._last_line_at < config.RESYNC_QUIET:
-            time.sleep(0.05)
+        self._settle()
         self._desynced = False
         self.ping()
 

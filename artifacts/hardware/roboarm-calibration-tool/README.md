@@ -1,7 +1,7 @@
 # calibration-tool
 
 Ferramenta de calibração do braço robótico MDF (kit genérico, 4 servos SG90)
-sobre Arduino Uno R3, com os servos acionados por um PCA9685 via I²C.
+sobre Arduino Uno R4 WiFi (ou R3), com os servos acionados por um PCA9685 via I²C.
 
 Serve para **mapear os limites mecânicos das juntas** e ensaiar o ciclo de
 preensão antes do firmware de produção. Também ensaia a **zona de separação**
@@ -25,7 +25,7 @@ Library** (a `Wire` já vem com o core). Para validar sem gravar:
 
 ```
 arduino-cli lib install "Adafruit PWM Servo Driver Library"
-arduino-cli compile --fqbn arduino:avr:uno calibration-tool
+arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi calibration-tool   # R3: arduino:avr:uno
 ```
 
 A pasta precisa ter o mesmo nome do `.ino`, exigência do Arduino IDE.
@@ -223,9 +223,11 @@ sustentar o braço.
 **Servos nunca no pino 5 V do Arduino.** O `V+` do PCA9685 vem da fonte
 separada, com **GND comum** entre fonte, módulo e Arduino.
 
-**Abrir o Monitor Serial reseta o Arduino e solta todas as juntas.** É o
-`setup()` cortando os canais do PCA9685. O braço cai para onde a gravidade o
-levar, então não abra o monitor com o braço erguido ou segurando algo.
+**No Uno R3, abrir o Monitor Serial reseta o Arduino e solta todas as
+juntas** — é o `setup()` cortando os canais do PCA9685; o braço cai para onde
+a gravidade o levar. **No Uno R4 (USB nativo) abrir a porta não reseta:** o
+firmware e as juntas continuam como estavam, e o menu de ajuda do boot não
+aparece; digite `h`.
 
 **Sinal de brownout:** serial corrompida ou menu de ajuda reaparecendo sozinho
 indica reset por queda de tensão. Resposta: `offall`.

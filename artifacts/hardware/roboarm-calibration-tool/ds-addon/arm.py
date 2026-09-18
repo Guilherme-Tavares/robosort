@@ -46,6 +46,8 @@ def find_port(hint=None):
         text = f"{port.description} {port.manufacturer or ''}".lower()
         if "bluetooth" in text:
             continue
+        if port.vid in (0x2341, 0x2A03, 0x1A86):   # Arduino, Arduino.org, CH340
+            return port.device
         if any(k in text for k in ("arduino", "ch340", "usb-serial", "usb serial")):
             return port.device
     return None

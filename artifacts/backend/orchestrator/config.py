@@ -18,7 +18,8 @@ FIXED_CORNER = 0              # unica area de aquisicao por enquanto; os demais 
 
 # ---- Serial ----
 BAUD = 115200
-BOOT_TIMEOUT = 6.0            # espera pelo READY apos abrir a porta (o Uno reseta)
+BOOT_TIMEOUT = 6.0            # espera pelo firmware responder apos abrir a porta
+PROBE_INTERVAL = 1.0          # entre 'ping' de sondagem enquanto nao ha READY
 ACK_TIMEOUT = 8.0             # comando simples: maior que o movimento mais longo (160 graus, ~5 s)
 SEQUENCE_TIMEOUT = 40.0       # mv home/dest/area e push: varios movimentos e pausas
 RESYNC_QUIET = 0.5            # silencio na serial que caracteriza fim de respostas atrasadas

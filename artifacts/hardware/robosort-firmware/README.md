@@ -1,6 +1,7 @@
 # robosort-firmware
 
-Firmware de produção do Arduino Uno R3. Move as juntas do braço através do
+Firmware de produção do Arduino Uno R4 WiFi (também compila para o Uno R3).
+Move as juntas do braço através do
 PCA9685, lê o sensor de presença e confirma cada comando ao concluí-lo.
 
 **O PC decide, o Arduino executa.** Em produção o orquestrador
@@ -26,18 +27,31 @@ Bibliotecas: `Wire` (core) e **Adafruit PWM Servo Driver Library** 3.0.x.
 
 ```
 arduino-cli lib install "Adafruit PWM Servo Driver Library"
-arduino-cli compile --fqbn arduino:avr:uno robosort-firmware
+arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi robosort-firmware
 ```
 
-Com o módulo de separação:
+Para o Uno R3, `--fqbn arduino:avr:uno`. `ENABLE_SORTING` vem ligado em
+`config.h`; para compilar sem separação:
 
 ```
-arduino-cli compile --fqbn arduino:avr:uno \
-  --build-property "build.extra_flags=-DENABLE_SORTING=1" robosort-firmware
+arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi \
+  --build-property "build.extra_flags=-DENABLE_SORTING=0" robosort-firmware
 ```
 
-Ocupa ~13,8 KB de flash e 728 bytes de RAM sem separação; ~16,1 KB e 823
-bytes com.
+No R4 WiFi ocupa ~72 KB de flash (27%) e ~9,6 KB de RAM (29%); no R3, ~16 KB
+e ~820 bytes com separação.
+
+### Uno R4 WiFi versus Uno R3
+
+O R4 tem USB nativo: **abrir a porta serial não reseta a placa.** O firmware
+continua de onde estava, com as juntas como estavam; o `READY` do boot só
+aparece a quem estiver com a porta aberta na hora. O orquestrador lida com
+isso sondando com `ping`. No Monitor Serial, digite `ping` ou `dump` para
+ver se está vivo. Um reset de verdade é o botão RESET ou desligar a
+alimentação USB.
+
+I²C no R4: `Wire` continua em A4/A5 (SDA/SCL); o conector Qwiic é `Wire1` e
+**não** é usado. Pinos de 5 V, como no R3.
 
 ## Ligações
 
@@ -228,9 +242,10 @@ Herdadas da ferramenta de calibração (`roboarm-calibration-tool`), onde
 nasceram de servo queimado ou quase. Não podem regredir.
 
 1. **Nenhum sinal chega a servo algum até comando explícito.** O `setup()`
-   corta os 16 canais do PCA9685 antes de tudo. Reset do Arduino, inclusive o
-   de abrir o Monitor Serial, **não** reseta o PCA9685; sem o corte os canais
-   continuariam pulsando na última posição com o firmware sem saber.
+   corta os 16 canais do PCA9685 antes de tudo. Reset do Arduino **não**
+   reseta o PCA9685; sem o corte os canais continuariam pulsando na última
+   posição com o firmware sem saber. (No R3, abrir o Monitor Serial é um
+   reset; no R4, não.)
 2. **Energização sem salto.** O primeiro pulso a um canal já tem a largura da
    posição declarada. Junta de posição desconhecida não recebe movimento.
 3. **Todo movimento é interpolado** com *smoothstep*.
@@ -241,8 +256,9 @@ nasceram de servo queimado ou quase. Não podem regredir.
 7. **PCA9685 ausente é detectado no boot:** `ERR pca` em vez de `READY`, e
    movimentos recusados.
 
-Consequência de 1: **abrir o Monitor Serial solta o braço.** Não abrir com o
-braço erguido ou segurando algo.
+Consequência de 1, **só no Uno R3**: abrir o Monitor Serial reseta a placa e
+solta o braço; não abrir com o braço erguido. No R4 nada disso acontece, e o
+braço fica como estava.
 
 ## Uso pelo Monitor Serial
 

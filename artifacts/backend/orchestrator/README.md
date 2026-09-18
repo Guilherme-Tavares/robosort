@@ -141,8 +141,13 @@ Implementado em `serial_io.py`, a partir do README do firmware:
   `AckTimeout` e marca a ligação como dessincronizada: comandos são recusados
   até `resync()`, que descarta pendentes, espera a serial silenciar e
   confirma com `ping`.
-- **Boot:** abrir a porta reseta o Uno; `open()` espera `READY` e recusa a
-  conexão se vier `ERR pca`.
+- **Conexão:** no Uno R3 abrir a porta reseta a placa e o firmware emite
+  `READY`; no Uno R4 (USB nativo) não reseta, e o `READY` do boot se perdeu.
+  `open()` espera o `READY` e, em paralelo, sonda com `ping` a cada
+  `PROBE_INTERVAL`: `OK` também vale como vivo. Depois espera a serial
+  silenciar, para nenhuma linha atrasada parear com o primeiro comando.
+  `ERR pca` recusa a conexão. A porta é achada pelo VID USB (o R4 aparece
+  como "USB Serial Device" genérico no Windows).
 
 ## Ciclo
 
