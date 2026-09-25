@@ -28,8 +28,16 @@ Joint table[] = {
   ARM_ROW("altura",  "al", CH_HEIGHT,  J_HEIGHT,  2),
   ARM_ROW("alcance", "ac", CH_REACH,   J_REACH,   2),
 #if ENABLE_SORTING
-  // Empurrador: movido pelo interpolador de Sorting, nao pelo Motion.
-  { "norte", nullptr, CH_PUSHER_NORTE, 0, 180, PUSHER_NEUTRAL, PUSHER_NEUTRAL, 2, 0, JS_FREE },
+  // Empurradores: movidos pelo interpolador de Sorting, nao pelo Motion.
+  // Uma linha por zona, na mesma ordem de ZONE_NAMES; o nome da zona e o
+  // nome da junta, entao 'mv norte 90' e 'dump' funcionam sem caso especial.
+  #define PUSHER_ROW(NAME, CH) \
+    { NAME, nullptr, CH, 0, 180, PUSHER_NEUTRAL, PUSHER_NEUTRAL, 2, 0, JS_FREE }
+  PUSHER_ROW(Z1_NAME, Z1_CH),
+  PUSHER_ROW(Z2_NAME, Z2_CH),
+  PUSHER_ROW(Z3_NAME, Z3_CH),
+  PUSHER_ROW(Z4_NAME, Z4_CH),
+  PUSHER_ROW(Z5_NAME, Z5_CH),
 #endif
 };
 const int N = sizeof(table) / sizeof(table[0]);

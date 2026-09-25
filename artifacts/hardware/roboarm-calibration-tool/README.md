@@ -88,8 +88,9 @@ mv <j> <ang>     torna ativa, energiza sem salto e vai suave até <ang>
 mv home          sequência: base, altura, alcance, garra → HOME
 mv dest          sequência: DELIVERY, DROP, garra abre/fecha, volta a DELIVERY
 mv area          sequência: canto 0, aproximação, descida, garra fecha
-mv norte <id>    ciclo da zona: pré-posição, arma o sensor, empurra e volta
-                 (id par = cw, ímpar = ccw; aceita `cw`/`ccw` direto)
+mv re <r> es <e> [--arm]
+                 ciclo de separação da região r com o sentido do estado e
+mv <zona> <ang>  posiciona um empurrador (norte, nordeste, ...)
 stop             interrompe movimento, sequência e ciclo da zona; mantém energizado
 off [<j>]        solta a junta indicada (ou `norte`), ou a ativa
 offall           solta todas as juntas (pânico)
@@ -108,6 +109,51 @@ Durante um movimento em curso só são aceitos `stop`, `off`, `offall`, `dump`,
 `?`, `h`, `+` e `-`. Os demais pedem `stop` antes, porque `sel` e `mv` trocam a
 junta ativa, e trocá-la no meio de uma interpolação mandaria os ângulos do
 movimento em curso para o servo errado.
+
+## Zonas de separação
+
+Cinco regiões, uma zona cada, com sensor IR e empurrador próprios:
+
+| r | Região | Sensor (pino) | Empurrador (canal PCA) |
+|---|---|---|---|
+| 1 | norte | 4 | 8 |
+| 2 | nordeste | 7 | 9 * |
+| 3 | centro-oeste | 8 | 10 * |
+| 4 | sudeste | 12 | 11 * |
+| 5 | sul | 13 | 12 * |
+
+\* canal provisório: só o da zona 1 foi conferido em bancada. Confira com
+`mv <zona> <ang>` antes de rodar um ciclo, e ajuste `zoneCh[]` no sketch.
+
+**Dois estados por região**, que definem o sentido do empurrão: **estado 1
+gira anti-horário (ccw)**, **estado 2 horário (cw)**. O firmware não precisa
+saber qual estado é qual; só o sentido.
+
+```
+mv re 1 es 1          Norte, ccw: pré-posição, arma o sensor, empurra e volta
+mv re 4 es 2          Sudeste, cw
+mv re 1 es 1 --arm    o mesmo, precedido do ciclo do braço
+```
+
+Sem `--arm`, o comando testa só a esteira: leva o empurrador à pré-posição,
+arma o sensor e espera você passar a caixinha à mão.
+
+Com `--arm`, o ciclo é o do orquestrador, na mesma ordem:
+
+1. empurrador à pré-posição do sentido, 1 s para assentar
+2. 3 s para você pôr a caixinha no canto 0
+3. aquisição (como `mv area`)
+4. entrega (como `mv dest`); **o sensor só é armado no instante em que a
+   garra abre**, com a caixinha caindo na esteira
+5. volta a HOME
+
+O empurrador corre em paralelo, com interpolador próprio: detecta, espera a
+caixinha chegar (`PUSHER_DET_DELAY_MS`), empurra, segura, volta à
+pré-posição e imprime `PUSHED`. `stop` interrompe braço e empurradores.
+
+Posições de cada empurrador em `zonePreCw[]`, `zonePreCcw[]`, `zonePushCw[]`
+e `zonePushCcw[]`: medidas na zona 1 e herdadas pelas demais como ponto de
+partida.
 
 ## Poses: espelho da produção
 

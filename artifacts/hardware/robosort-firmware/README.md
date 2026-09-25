@@ -66,9 +66,18 @@ entre Arduino, módulo e fonte.
 | alcance | ac | 0 |
 | garra | g | 4 |
 | norte (empurrador) | | 8 |
+| nordeste | | 9 * |
+| centro-oeste | | 10 * |
+| sudeste | | 11 * |
+| sul | | 12 * |
 
-Canais 0-7 reservados ao braço; empurradores a partir do 8. Sensor IR da zona
-Norte no pino digital 2.
+Canais 0-7 reservados ao braço; empurradores a partir do 8. Sensores IR nos
+pinos digitais **4** (norte), **7** (nordeste), **8** (centro-oeste), **12**
+(sudeste) e **13** (sul).
+
+\* canal provisório: só o da zona norte foi conferido em bancada. Zonas,
+pinos e canais ficam em `config.h` (`Z1_*` a `Z5_*`), fonte única de onde
+`joints.cpp` e `sorting.cpp` montam suas tabelas.
 
 ## Constantes em `config.h`
 

@@ -112,8 +112,11 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // pre-posicao -> assenta -> PUSHED.
 // Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
 #if ENABLE_SORTING
-  #define PIN_IR_NORTE         2     // pino digital do Uno; A4/A5 sao o I2C
-  #define CH_PUSHER_NORTE      8     // empurradores a partir do canal 8
+  // Cinco zonas, uma por regiao: 1 Norte, 2 Nordeste, 3 Centro-Oeste,
+  // 4 Sudeste, 5 Sul. Cada uma tem sensor IR (pino digital do Uno; A4/A5 sao
+  // o I2C) e empurrador (canal do PCA9685, a partir do 8). Os pinos IR estao
+  // confirmados; dos canais, so o da zona 1 foi conferido em bancada.
+  #define ZONE_COUNT           5
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
   #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
   #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
@@ -121,11 +124,31 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
   #define PUSHER_HOLD_MS       1000  // segura o empurrao antes de voltar a pre-posicao
   #define PUSHER_SETTLE_MS     200   // assentamento na volta, antes do PUSHED
 
-  // Posicoes do empurrador, validadas em bancada. O repouso e a pre-posicao
-  // do sentido horario.
-  #define PUSHER_NEUTRAL     0   // repouso; 'rest' e 'home' levam aqui (= PRE_CW)
-  #define PUSHER_PRE_CW      0   // pre-posicao para empurrar em sentido horario
+  // Posicoes do empurrador, validadas em bancada na zona 1. O repouso e a
+  // pre-posicao do sentido horario. Estado 1 do produto gira ccw, estado 2 cw.
+  #define PUSHER_NEUTRAL     0      // repouso; 'rest' leva aqui (= PRE_CW)
+  #define PUSHER_PRE_CW      0      // pre-posicao para empurrar em sentido horario
   #define PUSHER_PRE_CCW     180    // pre-posicao para anti-horario
   #define PUSHER_PUSH_CW     180    // empurrao horario: 0 -> 180
-  #define PUSHER_PUSH_CCW    0   // empurrao anti-horario: 180 -> 0
+  #define PUSHER_PUSH_CCW    0      // empurrao anti-horario: 180 -> 0
+
+  // Zonas: nome (usado no protocolo e como nome da junta do empurrador),
+  // pino do sensor IR e canal do empurrador no PCA9685. Fonte unica: joints
+  // e sorting montam suas tabelas a partir daqui. Os pinos IR estao
+  // confirmados; dos canais, so o da zona 1 foi conferido em bancada.
+  #define Z1_NAME "norte"          // regiao 1
+  #define Z1_IR    4
+  #define Z1_CH    8
+  #define Z2_NAME "nordeste"       // regiao 2
+  #define Z2_IR    7
+  #define Z2_CH    9               // A CONFERIR
+  #define Z3_NAME "centro-oeste"   // regiao 3
+  #define Z3_IR    8
+  #define Z3_CH   10               // A CONFERIR
+  #define Z4_NAME "sudeste"        // regiao 4
+  #define Z4_IR   12
+  #define Z4_CH   11               // A CONFERIR
+  #define Z5_NAME "sul"            // regiao 5
+  #define Z5_IR   13
+  #define Z5_CH   12               // A CONFERIR
 #endif

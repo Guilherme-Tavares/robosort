@@ -13,11 +13,19 @@ struct Zone {
   int         preCw, preCcw, pushCw, pushCcw;
 };
 
+// Uma linha por regiao, na ordem de ZONE_NAMES; o indice da junta acompanha
+// a ordem das linhas de empurrador em joints.cpp.
+#define ZONE_ROW(NAME, PIN, N) \
+  { NAME, PIN, ARM_JOINTS + N, PUSHER_PRE_CW, PUSHER_PRE_CCW, PUSHER_PUSH_CW, PUSHER_PUSH_CCW }
 Zone zones[] = {
-  { "norte", PIN_IR_NORTE, ARM_JOINTS + 0,
-    PUSHER_PRE_CW, PUSHER_PRE_CCW, PUSHER_PUSH_CW, PUSHER_PUSH_CCW },
+  ZONE_ROW(Z1_NAME, Z1_IR, 0),
+  ZONE_ROW(Z2_NAME, Z2_IR, 1),
+  ZONE_ROW(Z3_NAME, Z3_IR, 2),
+  ZONE_ROW(Z4_NAME, Z4_IR, 3),
+  ZONE_ROW(Z5_NAME, Z5_IR, 4),
 };
 const int NZ = sizeof(zones) / sizeof(zones[0]);
+static_assert(NZ == ZONE_COUNT, "zones[] e ZONE_COUNT divergem");
 
 // Interpolador por zona, igual ao do motion mas com velocidade propria.
 struct Mover {
