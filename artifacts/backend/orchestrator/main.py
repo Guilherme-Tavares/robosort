@@ -1,6 +1,6 @@
 """Orquestrador do RoboSort: console de operacao.
 
-    python main.py [--port COMx] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
+    python main.py [--port PORTA] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
 
 Conecta ao firmware, le a configuracao do braco, energiza em HOME e abre o
 console. Os ciclos rodam numa thread propria; o console continua
@@ -107,7 +107,8 @@ def console(link, arm, runner, conveyor):
 
 def main():
     parser = argparse.ArgumentParser(description="Orquestrador do RoboSort")
-    parser.add_argument("--port", help="porta serial do Arduino (ex: COM5)")
+    exemplo_porta = "/dev/ttyACM0" if sys.platform.startswith("linux") else "COM5"
+    parser.add_argument("--port", help=f"porta serial do Arduino (ex: {exemplo_porta})")
     parser.add_argument("--camera", type=int, help="indice da camera")
     parser.add_argument("--no-camera", action="store_true", help="sem visao; so 'cycle N'")
     parser.add_argument("--assume-conveyor", action="store_true",

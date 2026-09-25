@@ -1,0 +1,9 @@
+# RoboSort: Arduino oficial, clones CH340 e LEGO Mindstorms EV3.
+# TAG+=uaccess libera o dispositivo para a sessao local ativa; os grupos
+# mantem o acesso em sessoes sem ambiente grafico.
+
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2a03", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="0694", ATTR{idProduct}=="0005", MODE="0660", GROUP="plugdev", TAG+="uaccess"

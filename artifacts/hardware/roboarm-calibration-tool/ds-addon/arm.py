@@ -5,6 +5,7 @@ confirmacao de cada comando. Nao conhece o controle: quem manda e o main.
 """
 
 import re
+import sys
 import time
 
 import serial
@@ -39,7 +40,7 @@ class ArmError(RuntimeError):
 
 
 def find_port(hint=None):
-    """Descobre a porta do Arduino. Ignora as portas Bluetooth do Windows."""
+    """Descobre a porta do Arduino e ignora portas seriais Bluetooth."""
     if hint:
         return hint
     for port in list_ports.comports():
@@ -73,11 +74,26 @@ class ArmLink:
     def open(self):
         port = find_port(self.port_hint)
         if port is None:
+            exemplo = "/dev/ttyACM0" if sys.platform.startswith("linux") else "COM5"
             raise ArmError(
-                "Arduino nao encontrado. Conecte o cabo USB ou passe --port COMx."
+                f"Arduino nao encontrado. Conecte o cabo USB ou passe --port {exemplo}."
             )
 
-        self.serial = serial.Serial(port, BAUD, timeout=IDLE_READ)
+        try:
+            self.serial = serial.Serial(port, BAUD, timeout=IDLE_READ)
+        except serial.SerialException as exc:
+            sem_permissao = (
+                isinstance(exc.__context__, PermissionError)
+                or getattr(exc, "errno", None) == 13
+                or "permission denied" in str(exc).lower()
+                or "access is denied" in str(exc).lower()
+            )
+            if sem_permissao and sys.platform.startswith("linux"):
+                raise ArmError(
+                    f"sem permissao para abrir {port}. Instale as regras udev do projeto "
+                    "e adicione seu usuario ao grupo dialout; depois reconecte o Arduino."
+                ) from exc
+            raise ArmError(f"nao abriu {port}: {exc}") from exc
         print(f"  porta: {port}")
 
         # Espera o reset e descarta o menu de ajuda que o firmware imprime.

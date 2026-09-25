@@ -54,7 +54,7 @@ def open_controller():
         print("!! Nenhum controle encontrado.")
         print()
         print("   Bluetooth: segure Create + PS ate a barra piscar, entao")
-        print("   pareie pelas configuracoes do Windows.")
+        print("   pareie pelas configuracoes Bluetooth do sistema.")
         print("   Ou conecte o cabo USB-C e rode de novo.")
         return None
 

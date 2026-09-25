@@ -36,19 +36,34 @@ requirements.txt
 
 ## Instalação
 
-```
-python -m venv .venv          # em artifacts/backend
-.venv/Scripts/pip install -r orchestrator/requirements.txt
+No Linux, a partir da raiz do repositório:
+
+```bash
+./scripts/instalar-linux.sh
+source .venv/bin/activate
 ```
 
-EV3 pela USB (porta `PC` do brick, firmware LEGO original): no Windows o brick é um dispositivo HID e o `ev3_io.py` fala com ele por `hidapi`, sem trocar driver — nada de Zadig nem `libusb-1.0.dll`. Basta ligar o brick e conectar o cabo antes de abrir o console.
+O procedimento completo, incluindo as permissões de Arduino e EV3, está no
+[README principal](../../../README.md#rodar-no-linux). Para instalar somente
+este módulo manualmente:
+
+```
+python3 -m venv .venv
+.venv/bin/python -m pip install -r artifacts/backend/orchestrator/requirements.txt
+```
+
+EV3 pela USB (porta `PC` do brick, firmware LEGO original): no Linux o
+`ev3_io.py` usa `pyusb`/`libusb` e a regra
+`config/udev/99-robosort.rules`. Ligue o brick e conecte o cabo antes de abrir
+o console. No Windows, o código usa `hidapi`, sem trocar o driver — nada de
+Zadig nem `libusb-1.0.dll`.
 
 ## Uso
 
 ```
-python main.py [--port COMx] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
+python main.py [--port /dev/ttyACM0] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
 
-python serial_io.py [--port COMx]   REPL sobre a serial; DET e PUSHED aparecem quando chegam
+python serial_io.py [--port /dev/ttyACM0]   REPL sobre a serial; DET e PUSHED aparecem quando chegam
 python vision.py [--camera K]       janela ao vivo: marcadores, homografia, coordenadas
 ```
 
