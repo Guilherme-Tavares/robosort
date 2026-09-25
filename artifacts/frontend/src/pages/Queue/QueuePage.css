@@ -1,0 +1,42 @@
+.queue-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.queue-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.queue-page-title {
+  margin: 0;
+}
+
+.queue-page-subtitle {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.queue-page-updated {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.queue-page-warning {
+  margin-top: 0.25rem;
+}
+
+.queue-page-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .queue-page-layout {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}

@@ -1,0 +1,77 @@
+/* Reset leve */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+ul,
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:root {
+  /* Cores neutras */
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-border: #e2e4e9;
+  --color-text: #1f2430;
+  --color-text-muted: #5b6270;
+
+  /* Cor de destaque */
+  --color-accent: #2f6fed;
+
+  /* Cores das badges de status */
+  --color-badge-aguardando: #6b7280;
+  --color-badge-separando: #2f6fed;
+  --color-badge-concluido: #22a06b;
+  --color-badge-erro: #d64545;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+/* Classes utilitárias de estado de UI */
+.ui-message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.ui-message--error {
+  background: rgba(214, 69, 69, 0.08);
+  border-color: var(--color-badge-erro);
+  color: var(--color-badge-erro);
+}
+
+.ui-message--success {
+  background: rgba(34, 160, 107, 0.08);
+  border-color: var(--color-badge-concluido);
+  color: var(--color-badge-concluido);
+}

@@ -1,0 +1,35 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependências e build
+node_modules
+dist
+dist-ssr
+coverage
+*.tsbuildinfo
+.vite
+
+# Variáveis de ambiente
+# .env.development e .env.example são versionados (só defaults, sem segredos).
+# Qualquer .env com valores reais fica fora do repositório.
+.env
+.env.production
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

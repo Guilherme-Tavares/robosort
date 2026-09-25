@@ -1,0 +1,30 @@
+.region-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.region-table th,
+.region-table td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.region-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  background: var(--color-bg);
+}
+
+.region-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.region-table-volume {
+  text-align: right;
+}

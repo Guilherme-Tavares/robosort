@@ -1,0 +1,78 @@
+.purchase-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.purchase-summary-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.purchase-summary-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.purchase-summary-field select {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.purchase-summary-resume dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.purchase-summary-resume dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.purchase-summary-resume dd {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.purchase-summary-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.purchase-summary-cancel {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.purchase-summary-confirm {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.purchase-summary-confirm:disabled,
+.purchase-summary-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

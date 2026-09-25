@@ -1,0 +1,25 @@
+.queue-board {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.queue-board-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.queue-board-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.queue-board-next-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
