@@ -107,7 +107,7 @@ static const int CORNER_REACH[CORNERS]    = { 56, 57, 60, 58 };
 // module-tester, validada em bancada: rapida, mas suave no arranque e na
 // chegada, para empurrar a caixinha em vez de lanca-la.
 // Fluxo por caixinha: 'prep' (declara e energiza na pre-posicao do sentido
-// decidido) -> braco entrega -> 'arm' quando a garra abre -> DET -> espera
+// decidido) -> braco entrega -> 'arm' logo antes de a garra abrir -> DET -> espera
 // PUSHER_DET_DELAY_MS -> empurrao -> segura PUSHER_HOLD_MS -> volta a
 // pre-posicao -> assenta -> PUSHED.
 // Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
