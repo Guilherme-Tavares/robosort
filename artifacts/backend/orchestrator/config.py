@@ -84,10 +84,29 @@ CONVEYOR_RAMP_TIME = 1.0      # s de rampa de aceleracao (a parada e imediata)
 CONVEYOR_IDLE_STOP = 3.0      # s sem caixinha a vista, apos um ciclo, ate desligar
 
 
-# ---- Roteamento mockado (sem banco) ----
-# ArUco 10-21 -> zona (regiao) e estado. Cinco regioes, duas por zona;
-# direcao segue a convencao do calibration-tool: o 1o estado de cada regiao
-# gira ccw, o 2o cw. Enquanto nao ha banco, e so essa tabela.
+# ---- Roteamento: de onde vem o destino da caixinha ----
+# "api": consulta a API (GET /purchase/<id>), que devolve o estado e a
+#        regiao do pedido. O destino e do PEDIDO: se o primeiro pedido for
+#        para SP, a caixinha 10 vai para Sao Paulo. Sem limite de ID.
+# "mock": a tabela ROTEAMENTO abaixo, para bancada sem MySQL.
+# Nao ha volta ao mock em caso de falha da API: ver routing.py.
+ROUTE_SOURCE = "mock"
+API_BASE_URL = "http://localhost:3000/api"
+API_TIMEOUT = 3.0
+
+# Lado do compartimento de cada estado na esteira: geometria da bancada, nao
+# dado de negocio, por isso fica aqui e nao no banco. O 1o estado de cada
+# regiao gira anti-horario; o 2o, horario (convencao do calibration-tool).
+SENTIDO_POR_UF = {
+    "RO": "ccw", "AC": "cw",     # Norte
+    "BA": "ccw", "CE": "cw",     # Nordeste
+    "GO": "ccw", "MT": "cw",     # Centro-Oeste
+    "SP": "ccw", "RJ": "cw",     # Sudeste
+    "PR": "ccw", "RS": "cw",     # Sul
+}
+
+# Mock: ArUco 10-21 -> (zona, estado, sentido). Espelha o seed da API
+# (Region 1..5 e dois estados cada) com o primeiro pedido em 10.
 ROTEAMENTO = {
     10: ("norte", "RO", "ccw"),
     11: ("norte", "AC", "cw"),
@@ -104,9 +123,4 @@ ROTEAMENTO = {
 }
 
 
-def route(marker_id):
-    """(zona, estado, direcao) mockado pelo ID do marcador ArUco (10-21)."""
-    try:
-        return ROTEAMENTO[marker_id]
-    except KeyError:
-        raise ValueError(f"marcador {marker_id} sem roteamento (mock cobre 10-21)") from None
+# route() vive em routing.py, que escolhe a fonte por ROUTE_SOURCE.

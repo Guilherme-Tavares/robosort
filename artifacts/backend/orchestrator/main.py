@@ -55,6 +55,9 @@ def show_config(cfg):
     flags = [f for f in ("ENABLE_VISION", "ENABLE_LOCALIZATION", "ENABLE_CONVEYOR", "ENABLE_SORTING")
              if getattr(config, f)]
     print(f"  flags ativas: {', '.join(flags) or 'nenhuma'}; canto fixo {config.FIXED_CORNER}")
+    destino = ("mock (sem banco)" if config.ROUTE_SOURCE == "mock"
+               else f"API em {config.API_BASE_URL}")
+    print(f"  roteamento: {destino}")
 
 
 def console(link, arm, runner, conveyor):

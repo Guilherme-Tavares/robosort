@@ -28,6 +28,7 @@ config.py         flags, geometria da área, tempos, roteamento provisório
 serial_io.py      ligação com o firmware: thread leitora, fila de DET, contrato FIFO
 vision.py         câmera, ArUco, identificação, homografia congelada, localização
 kinematics.py     interpolação bilinear dos valores-guia
+routing.py        destino da caixinha: API (banco) ou mock, por ROUTE_SOURCE
 ev3_io.py         esteira contínua pelo EV3 (ev3_dc), ou AssumedConveyor
 orchestrator.py   Arm (pick, deliver, go_home, safe_stop), run_sorting_cycle, Runner
 main.py           console de operação
@@ -124,8 +125,8 @@ estiver desligada).
 
 1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames; o menor, se
    houver mais de um) ou usa o N de `cycle`
-2. Roteia pela tabela mockada em `config.ROTEAMENTO` (marcador 10-21 → zona/região, estado,
-   sentido do empurrador; 5 regiões, 2 estados cada — sem banco por enquanto)
+2. Roteia em `routing.route()`: com `ROUTE_SOURCE = "api"`, consulta o pedido no banco;
+   com `"mock"`, usa a tabela `config.ROTEAMENTO` (ver *De onde vem o destino*)
 3. `prep <zona> <sentido>` — empurrador da zona sorteada declarado e energizado na
    pré-posição, antes de o braço se mover; `PREP_SETTLE_DELAY` para assentar
 4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
@@ -149,6 +150,33 @@ dela. Braço fora de HOME significa solavanco maior.
 `--builtin` é a referência: executa `mv area`, `mv dest` e `mv home` do
 próprio firmware. Se ele funciona e o ciclo junta a junta não, o problema é
 do orquestrador.
+
+## De onde vem o destino
+
+Quem decide para onde a caixinha vai é `routing.py`, pela flag
+`ROUTE_SOURCE` em `config.py`:
+
+| | `"api"` | `"mock"` |
+|---|---|---|
+| Fonte | `GET /api/purchase/<id>` | tabela `config.ROTEAMENTO` |
+| Destino | **do pedido**: se o 1º pedido for para SP, a caixinha 10 vai para São Paulo | fixo por ID |
+| Faixa de IDs | qualquer pedido (22, 23, 50…) | 10-21 |
+| Precisa de | API e MySQL no ar | nada |
+
+O ID do marcador é o `volume` da compra: a API o gera a partir de 10,
+incrementando a cada pedido.
+
+**Com `"api"` não há volta ao mock.** API fora do ar aborta o ciclo e para o
+automático com mensagem; cair no mock em silêncio mandaria a caixinha para o
+compartimento errado sem ninguém perceber. Duas falhas são distinguidas:
+
+- **caixinha sem pedido** (404) — caso de operação: aborta só o ciclo (`--`), o automático segue
+- **API fora, resposta inválida, região desconhecida** — infraestrutura: para o automático (`!!`)
+
+O que **não** vem do banco é o sentido do empurrador: de que lado fica o
+compartimento de cada estado é geometria da bancada, e mora em
+`config.SENTIDO_POR_UF`. O banco diz que o pedido vai para o Acre; a tabela
+diz que o Acre é o lado horário da zona norte.
 
 ## De onde vêm os números
 

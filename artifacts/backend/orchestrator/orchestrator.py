@@ -6,8 +6,8 @@ firmware (mv area, mv dest, mv home); a diferenca e que aqui o alvo da
 aquisicao pode ser interpolado pela visao, em vez de um canto fixo.
 
 run_sorting_cycle e o ciclo desta fase: identifica a caixinha pela camera,
-decide o destino pela tabela mockada em config.route() (zona, estado,
-sentido), prepara e arma o empurrador da zona correspondente, pega (canto
+decide o destino em routing.route() (zona, estado, sentido — do pedido no
+banco, ou do mock), prepara e arma o empurrador da zona correspondente, pega (canto
 fixo ou alvo interpolado, conforme ENABLE_LOCALIZATION), entrega na esteira,
 volta a HOME e espera o firmware confirmar o empurrao. Runner roda ciclos
 numa thread, no automatico ou sob demanda.
@@ -19,6 +19,7 @@ from queue import Empty, Queue
 
 import config
 import kinematics
+import routing
 from ev3_io import ConveyorError
 from serial_io import JOINTS, AckTimeout, ArduinoError, CommandError
 from vision import VisionError
@@ -159,8 +160,8 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
         pid = vision.identify()
         log(f"  identificado: marcador {pid}")
 
-    # 2. Roteamento mockado: marcador -> zona (regiao), estado, sentido.
-    zone, state, direction = config.route(pid)
+    # 2. Destino do pedido (API) ou do mock: zona (regiao), estado, sentido.
+    zone, state, direction = routing.route(pid)
     log(f"  destino: {state} ({zone}) -> empurrador {direction}")
 
     # 3. Empurrador declarado e energizado na pre-posicao do sentido, com um
@@ -303,7 +304,9 @@ class Runner(threading.Thread):
             try:
                 run_sorting_cycle(self.arm, self.link, self.vision, forced)
                 self.cycles += 1
-            except (VisionError, Aborted) as exc:
+            except (VisionError, Aborted, routing.UnknownMarker) as exc:
+                # Caixinha sem pedido, ou fora do mock: e caso de operacao,
+                # nao de infraestrutura. Aborta o ciclo e segue no automatico.
                 self.log(f"  -- {exc}")
             except CommandError as exc:
                 if exc.reason == "interrompido":
@@ -312,7 +315,9 @@ class Runner(threading.Thread):
                     self.log(f"!! {exc}")
                     self.failed = exc
                 self.auto = False
-            except (AckTimeout, ValueError, ConveyorError) as exc:
+            except (AckTimeout, ValueError, ConveyorError, routing.RoutingError) as exc:
+                # RoutingError e API fora do ar ou mal configurada: parar e
+                # avisar, em vez de seguir mandando caixinha a esmo.
                 self.log(f"!! {exc}")
                 self.failed = exc
                 self.auto = False
