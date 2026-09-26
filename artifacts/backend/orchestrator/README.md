@@ -83,8 +83,8 @@ desligada).
 3. `prep norte <sentido>` — empurrador declarado e energizado na pré-posição, antes de o
    braço se mover; `PREP_SETTLE_DELAY` para assentar
 4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
-   ponto de soltura, **abre a garra e só então `arm norte <sentido>`** — antes disso nada
-   deve passar pelo sensor; fecha, recua; HOME
+   ponto de soltura, **`arm norte <sentido>` e só então abre a garra** — o sensor já
+   escuta quando a caixinha cai, e antes disso nada deve passar por ele; fecha, recua; HOME
 5. Espera `PUSHED norte` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
    pré-posição; o `DET` pode ter chegado durante o HOME e fica na fila até aqui
 

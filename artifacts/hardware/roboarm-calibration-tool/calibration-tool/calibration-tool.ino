@@ -61,8 +61,8 @@
 // PROVISORIOS, conferir antes de energizar.
 //                             1 Norte  2 Nordeste  3 C-Oeste  4 Sudeste  5 Sul
 const char* zoneName[]    = { "norte", "nordeste", "centro-oeste", "sudeste", "sul" };
-const uint8_t zoneIrPin[] = {      4,          7,             8,        12,    13 };
-const uint8_t zoneCh[]    = {      8,          9,            10,        11,    12 };  // 9-12 A CONFERIR
+const uint8_t zoneIrPin[] = {      11,          10,             9,        6,    2 };
+const uint8_t zoneCh[]    = {      8,          9,            10,        12,    13 };  // 9-12 A CONFERIR
 
 // Posicoes de cada empurrador. Medidas na zona 1; as demais herdam os mesmos
 // valores como ponto de partida, a ajustar com 'mv <zona> <ang>'.
@@ -93,20 +93,20 @@ const int knownMax[]  = {  178,   120,    136,     176 };
 // producao. 'home' e 'dest' declaram as juntas nestas poses.
 //                                     base  garra  altura  alcance
 const int ARM_HOME[JOINT_COUNT]     = {   18,    82,     91,      96 };
-const int ARM_DELIVERY[JOINT_COUNT] = {   92,    82,    101,     102 };
+const int ARM_DELIVERY[JOINT_COUNT] = {   96,    82,    110,     84 };
 
 // Garra: aberta e fechada sao angulos proprios, nao os limites.
 #define GRIPPER_OPEN      120
 #define GRIPPER_CLOSED     82
 
 // DROP: de DELIVERY, altura e alcance avancam ate a soltura; depois voltam.
-#define DROP_HEIGHT        92
-#define DROP_REACH         98
+#define DROP_HEIGHT        96
+#define DROP_REACH         74
 
 // Canto 0: unica area de aquisicao por enquanto.
-#define CORNER0_BASE       44
-#define CORNER0_HEIGHT     29
-#define CORNER0_REACH      56
+#define CORNER0_BASE       18
+#define CORNER0_HEIGHT     22
+#define CORNER0_REACH      62
 
 // Aproximacao: altura e alcance antes de descer ao canto.
 #define APPROACH_HEIGHT    39
@@ -418,8 +418,8 @@ void seqDest() {
 
 // Ciclo completo do braco ('mv re .. es .. --arm'), igual ao do orquestrador:
 // espera o operador posicionar a caixinha, pega no canto, leva a esteira e,
-// no instante em que a garra abre, arma o sensor da zona; depois volta a
-// HOME. O empurrador ja esta na pre-posicao (pusherPrep) e cuida do resto
+// imediatamente antes de a garra abrir, arma o sensor da zona; depois volta
+// a HOME. O empurrador ja esta na pre-posicao (pusherPrep) e cuida do resto
 // sozinho, em paralelo.
 void seqArmCycle(int z) {
   SeqStep s[] = {
@@ -437,14 +437,14 @@ void seqArmCycle(int z) {
     { J_GRIPPER, GRIPPER_CLOSED       },
     { SEQ_WAIT,  GRIP_HOLD_DELAY_MS   },
 
-    // entrega (mv dest), com o sensor armado ao abrir a garra
+    // entrega (mv dest), com o sensor armado logo antes de a garra abrir
     { J_REACH,   (uint16_t)ARM_DELIVERY[J_REACH]   },
     { J_HEIGHT,  (uint16_t)ARM_DELIVERY[J_HEIGHT]  },
     { J_BASE,    (uint16_t)ARM_DELIVERY[J_BASE]    },
     { J_HEIGHT,  DROP_HEIGHT                       },
     { J_REACH,   DROP_REACH                        },
-    { J_GRIPPER, GRIPPER_OPEN                      },
     { SEQ_ARM,   (uint16_t)z                       },
+    { J_GRIPPER, GRIPPER_OPEN                      },
     { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS               },
     { J_GRIPPER, GRIPPER_CLOSED                    },
     { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                },
@@ -543,7 +543,7 @@ bool pusherPrep(int z, bool cw, bool armOnReady) {
 }
 
 // Arma o sensor de uma zona que ja esta na pre-posicao. Chamado pelo passo
-// SEQ_ARM, quando a garra abre e a caixinha cai na esteira.
+// SEQ_ARM, logo antes de a garra abrir e a caixinha cair na esteira.
 void pusherArm(int z) {
   if (pPhase[z] != P_READY && pPhase[z] != P_PREP) {
     Serial.print(F("!! ")); Serial.print(zoneName[z]);
@@ -554,7 +554,7 @@ void pusherArm(int z) {
   if (pPhase[z] == P_READY) {
     pLowSince[z] = 0;
     pPhase[z] = P_ARMED;
-    pusherTag(z); Serial.println(F("sensor armado: a caixinha esta na esteira"));
+    pusherTag(z); Serial.println(F("sensor armado: a garra vai abrir"));
   }
 }
 

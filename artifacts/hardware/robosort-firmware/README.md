@@ -313,7 +313,7 @@ Fluxo por caixinha:
 ```
 prep norte cw      declara e energiza na pré-posição do sentido (PUSHER_PRE_CW / _CCW)
                    ... o braço pega e leva à esteira ...
-arm norte cw       quando a garra abre: sensor armado com o sentido
+arm norte cw       logo antes de a garra abrir: sensor armado com o sentido
 DET norte          sensor disparou; o firmware espera PUSHER_DET_DELAY_MS (a caixinha
                    anda até o empurrador), move para PUSHER_PUSH_CW / _CCW,
                    segura PUSHER_HOLD_MS, volta à pré-posição, assenta PUSHER_SETTLE_MS

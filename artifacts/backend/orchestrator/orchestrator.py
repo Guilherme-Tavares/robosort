@@ -84,12 +84,13 @@ class Arm:
         self.mv("garra", self.gripper_closed)
         time.sleep(config.GRIP_HOLD_DELAY)
 
-    def deliver(self, on_release=None):
+    def deliver(self, before_release=None):
         """Mesma ordem de 'mv dest': alcance, altura, base ate DELIVERY;
         altura e alcance ate DROP; garra abre, pausa, fecha, pausa, repousa;
         alcance e altura de volta a DELIVERY, para o home partir de uma
-        pose segura. on_release() roda logo apos a garra abrir: e o momento
-        de armar o sensor, com a caixinha caindo na esteira."""
+        pose segura. before_release() roda imediatamente antes de a garra
+        abrir: e o momento de armar o sensor, ja escutando quando a
+        caixinha cai na esteira."""
         d = self._pose("delivery")
         drop = self.cfg.drop
         self.log("  deliver")
@@ -98,9 +99,9 @@ class Arm:
         self.mv("base", d["base"])
         self.mv("altura", drop["altura"])
         self.mv("alcance", drop["alcance"])
+        if before_release:
+            before_release()
         self.mv("garra", self.gripper_open)
-        if on_release:
-            on_release()
         time.sleep(config.GRIP_CLOSE_DELAY)
         self.mv("garra", self.gripper_closed)
         time.sleep(config.GRIP_HOLD_DELAY)
@@ -163,16 +164,16 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
 
     # 3. Empurrador declarado e energizado na pre-posicao do sentido, com um
     #    tempo para assentar, antes de o braco se mover. O sensor so e armado
-    #    quando a garra abre na entrega (ver deliver): antes disso nada deve
-    #    passar por ele.
-    on_release = None
+    #    na entrega, imediatamente antes de a garra abrir (ver deliver):
+    #    antes disso nada deve passar por ele.
+    before_release = None
     if config.ENABLE_SORTING:
         link.drain_events()
         link.prep(zone, direction)
         time.sleep(config.PREP_SETTLE_DELAY)
         log(f"  {zone}: empurrador na pre-posicao ({direction})")
 
-        def on_release():
+        def before_release():
             link.arm(zone, direction)
             log(f"  {zone}: sensor armado ({direction})")
 
@@ -186,7 +187,7 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
         arm.pick(**target)
     else:
         arm.pick_corner(config.FIXED_CORNER)
-    arm.deliver(on_release)
+    arm.deliver(before_release)
     arm.go_home()
 
     # 5. Confirmacao do empurrao. O DET pode ter chegado durante o home.

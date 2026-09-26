@@ -143,8 +143,8 @@ Com `--arm`, o ciclo é o do orquestrador, na mesma ordem:
 1. empurrador à pré-posição do sentido, 1 s para assentar
 2. 3 s para você pôr a caixinha no canto 0
 3. aquisição (como `mv area`)
-4. entrega (como `mv dest`); **o sensor só é armado no instante em que a
-   garra abre**, com a caixinha caindo na esteira
+4. entrega (como `mv dest`); **o sensor é armado imediatamente antes de a
+   garra abrir**, já escutando quando a caixinha cai na esteira
 5. volta a HOME
 
 O empurrador corre em paralelo, com interpolador próprio: detecta, espera a
