@@ -8,3 +8,7 @@ robosort-spec-firmware-orquestrador.md
 __pycache__/
 
 .AGENTS.md
+
+# Binarios do teste de parser compilado (tests/test_parse.cpp)
+artifacts/backend/tests/*.exe
+artifacts/backend/tests/*.obj
