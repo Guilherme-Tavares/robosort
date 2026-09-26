@@ -43,6 +43,9 @@ cd artifacts/backend && .venv/Scripts/python orchestrator/main.py  # orquestrado
 cd artifacts/frontend && npm run dev                               # este front
 ```
 
+Na primeira vez, o banco `robosort` precisa existir antes da migration; o
+[README da API](../backend/api/README.md#rodar) traz o comando.
+
 | Tela | De onde vêm os dados |
 | --- | --- |
 | Compra | `GET /api/products`, `POST /api/purchase` — a resposta traz o **volume**, o número do marcador ArUco a colar na caixa |
