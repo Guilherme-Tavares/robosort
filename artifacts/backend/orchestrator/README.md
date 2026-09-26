@@ -61,7 +61,8 @@ Zadig nem `libusb-1.0.dll`.
 ## Uso
 
 ```
-python main.py [--port /dev/ttyACM0] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
+python main.py [--port /dev/ttyACM0] [--camera K] [--echo] [--no-camera]
+                [--no-camera-stream] [--assume-conveyor]
 
 python serial_io.py [--port /dev/ttyACM0]   REPL sobre a serial; DET e PUSHED aparecem quando chegam
 python vision.py [--camera K]       janela ao vivo: marcadores, homografia, coordenadas
@@ -87,6 +88,12 @@ caixinha levada à mão até o sensor; `on`/`off` só mudam a suposição.
 `--no-camera`: sem visão; só `cycle N`. Se a câmera não abrir, o console
 avisa e segue sem ela.
 
+Com a câmera ligada, o mesmo feed usado na identificação ArUco fica
+disponível em `http://<ip-da-maquina>:8090/stream.mjpg` (porta em
+`config.CAMERA_STREAM_PORT`) — é o que a tela de Fila do site mostra via
+`VITE_CAMERA_URL`. `--no-camera-stream` mantém a câmera e o ciclo normais,
+só sem expor essa porta na rede.
+
 ### O ciclo
 
 Condições para o automático iniciar um ciclo: esteira ligada **e** câmera
@@ -94,13 +101,14 @@ vendo uma caixinha. `cycle N` ignora as duas (avisa se a esteira estiver
 desligada).
 
 1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames) ou usa o N de `cycle`
-2. Roteia: par → Rondônia → `cw`; ímpar → Acre → `ccw`
-3. `prep norte <sentido>` — empurrador declarado e energizado na pré-posição, antes de o
-   braço se mover; `PREP_SETTLE_DELAY` para assentar
+2. Roteia pela tabela mockada em `config.ROTEAMENTO` (marcador 10-21 → zona/região, estado,
+   sentido do empurrador; 5 regiões, 2 estados cada — sem banco por enquanto)
+3. `prep <zona> <sentido>` — empurrador da zona sorteada declarado e energizado na
+   pré-posição, antes de o braço se mover; `PREP_SETTLE_DELAY` para assentar
 4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
-   ponto de soltura, **`arm norte <sentido>` e só então abre a garra** — o sensor já
+   ponto de soltura, **`arm <zona> <sentido>` e só então abre a garra** — o sensor já
    escuta quando a caixinha cai, e antes disso nada deve passar por ele; fecha, recua; HOME
-5. Espera `PUSHED norte` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
+5. Espera `PUSHED <zona>` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
    pré-posição; o `DET` pode ter chegado durante o HOME e fica na fila até aqui
 
 O próximo ciclo só começa com o `PUSHED` recebido e o braço em HOME. Sem

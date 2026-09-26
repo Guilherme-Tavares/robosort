@@ -1,6 +1,7 @@
 """Orquestrador do RoboSort: console de operacao.
 
-    python main.py [--port PORTA] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
+    python main.py [--port PORTA] [--camera K] [--echo] [--no-camera]
+                    [--no-camera-stream] [--assume-conveyor]
 
 Conecta ao firmware, le a configuracao do braco, energiza em HOME e abre o
 console. Os ciclos rodam numa thread propria; o console continua
@@ -18,13 +19,16 @@ Comandos:
 
 --assume-conveyor (ou ENABLE_CONVEYOR = False): a esteira sai da jogada e e
 assumida ligada, pelo brick, por outro PC ou a mao; 'on'/'off' so mudam a
-suposicao. --no-camera: sem visao; so 'cycle N'.
+suposicao. --no-camera: sem visao; so 'cycle N'. --no-camera-stream: camera
+liga normalmente, mas sem expor o feed em http://.../stream.mjpg (usado
+pela tela de Fila do site).
 """
 
 import argparse
 import sys
 
 import config
+from camera_stream import FrameBroadcaster, start_server
 from ev3_io import ConveyorError, open_conveyor
 from orchestrator import Arm, Runner
 from serial_io import AckTimeout, Arduino, ArduinoError, CommandError, JOINTS
@@ -68,20 +72,29 @@ def console(link, arm, runner, conveyor):
         word, _, arg = line.partition(" ")
 
         if word == "on":
-            conveyor.start()
+            try:
+                conveyor.start()
+            except ConveyorError as exc:
+                print(f"!! {exc}")
         elif word == "off":
-            conveyor.stop()
+            try:
+                conveyor.stop()
+            except ConveyorError as exc:
+                print(f"!! {exc}")
         elif word == "vel":
             if not arg.isdigit() or not 1 <= int(arg) <= 100:
                 print("  uso: vel N (1-100)")
             else:
-                conveyor.set_speed(int(arg))
+                try:
+                    conveyor.set_speed(int(arg))
+                except ConveyorError as exc:
+                    print(f"!! {exc}")
         elif word in ("start", "resume"):
             if runner.vision is None:
                 print("  sem camera: o automatico nao tem como identificar; use 'cycle N'")
             else:
                 runner.auto = True
-                print("  automatico ligado" + ("" if conveyor.running else " (esperando 'on')"))
+                print("  automatico ligado" + ("" if conveyor.running else " (liga a esteira sozinho ao procurar caixinha)"))
         elif word == "pause":
             runner.auto = False
             print("  automatico pausado" + ("; o ciclo atual termina" if runner.busy else ""))
@@ -111,6 +124,8 @@ def main():
     parser.add_argument("--port", help=f"porta serial do Arduino (ex: {exemplo_porta})")
     parser.add_argument("--camera", type=int, help="indice da camera")
     parser.add_argument("--no-camera", action="store_true", help="sem visao; so 'cycle N'")
+    parser.add_argument("--no-camera-stream", action="store_true",
+                        help="camera ligada, mas sem servidor mjpeg para a web")
     parser.add_argument("--assume-conveyor", action="store_true",
                         help="sem EV3: esteira assumida ligada (brick, outro PC ou a mao)")
     parser.add_argument("--echo", action="store_true", help="ecoa o trafego serial")
@@ -123,20 +138,32 @@ def main():
             print(f"  firmware pronto em {link.port}")
             cfg = link.read_config()
             show_config(cfg)
-            if config.ENABLE_SORTING and config.ZONE not in cfg.joints:
-                # Com sorting, o 'dump' lista o empurrador como junta da zona.
-                print(f"!! firmware sem separacao: 'dump' nao trouxe a junta '{config.ZONE}'. "
-                      f"Grave-o com ENABLE_SORTING 1 (config.h) ou desligue ENABLE_SORTING aqui.")
-                return 1
+            if config.ENABLE_SORTING:
+                faltando = [z for z in config.ZONES if z not in cfg.joints]
+                if faltando:
+                    # Com sorting, o 'dump' lista o empurrador de cada zona como junta.
+                    print(f"!! firmware sem separacao: 'dump' nao trouxe a(s) junta(s) {faltando}. "
+                          f"Grave-o com ENABLE_SORTING 1 (config.h) ou desligue ENABLE_SORTING aqui.")
+                    return 1
             arm = Arm(link, cfg)
 
             vision = None
+            stream_server = None
             if use_camera:
                 try:
                     vision = Vision(args.camera)
                     print(f"  camera {vision.camera_index}")
                 except VisionError as exc:
                     print(f"  sem camera ({exc}); so 'cycle N'")
+                if vision is not None and not args.no_camera_stream:
+                    try:
+                        broadcaster = FrameBroadcaster()
+                        vision.attach_stream(broadcaster)
+                        stream_server = start_server(
+                            broadcaster, config.CAMERA_STREAM_HOST, config.CAMERA_STREAM_PORT
+                        )
+                    except OSError as exc:
+                        print(f"  stream mjpeg indisponivel ({exc}); camera segue sem stream")
 
             try:
                 with open_conveyor(args.assume_conveyor) as conveyor:
@@ -155,13 +182,17 @@ def main():
                             link.stop()
                         runner.join(timeout=config.ACK_TIMEOUT + 2)
                         if config.ENABLE_SORTING:
-                            try:
-                                link.disarm(config.ZONE)
-                            except (CommandError, AckTimeout):
-                                pass
+                            for zone in config.ZONES:
+                                try:
+                                    link.disarm(zone)
+                                except (CommandError, AckTimeout):
+                                    pass
                         arm.safe_stop()
                         if conveyor.running:
-                            conveyor.stop()
+                            try:
+                                conveyor.stop()
+                            except ConveyorError as exc:
+                                print(f"!! {exc}")
             except (CommandError, AckTimeout, ValueError) as exc:
                 print(f"!! {exc}")
                 if isinstance(exc, AckTimeout):
@@ -169,6 +200,9 @@ def main():
                 arm.safe_stop()
                 return 1
             finally:
+                if stream_server:
+                    stream_server.shutdown()
+                    stream_server.server_close()
                 if vision:
                     vision.close()
     except (ArduinoError, ConveyorError) as exc:

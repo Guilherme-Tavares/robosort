@@ -34,7 +34,7 @@ JOINTS = ("base", "garra", "altura", "alcance")
 INTERRUPTS = ("stop", "offall", "off")
 EVENTS = ("DET", "PUSHED")
 
-STATE_RE = re.compile(r"STATE (\w+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
+STATE_RE = re.compile(r"STATE ([\w-]+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
 CORNER_RE = re.compile(r"CORNER (\d) (\d+) (\d+) (\d+)$")
 APPROACH_RE = re.compile(r"APPROACH (\d+) (\d+)$")
 DROP_RE = re.compile(r"DROP (\d+) (\d+)$")

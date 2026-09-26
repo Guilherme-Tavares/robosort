@@ -6,7 +6,7 @@ conexao ('dump' e 'corners'); fonte unica: robosort-firmware/config.h.
 """
 
 # ---- Flags ----
-ENABLE_VISION = False          # camera identifica o marcador da caixinha
+ENABLE_VISION = True           # camera identifica o marcador da caixinha
 ENABLE_LOCALIZATION = False   # visao localiza a caixinha e interpola o alvo;
                               # desligado: alvo fixo em FIXED_CORNER
 ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a esteira
@@ -31,6 +31,12 @@ CAMERA_HEIGHT = 720
 IDENTIFY_ATTEMPTS = 15        # frames tentados na identificacao
 IDENTIFY_MIN_HITS = 3         # frames em que o mesmo ID precisa aparecer
 IDENTIFY_INTERVAL = 0.1       # s entre frames
+
+# ---- Stream MJPEG (camera na web) ----
+CAMERA_STREAM_HOST = "0.0.0.0"     # alcancavel na LAN, para a tela de fila em outro dispositivo
+CAMERA_STREAM_PORT = 8090          # evita 5000 (proxy do front) e 5173 (vite dev)
+CAMERA_STREAM_FPS = 15             # taxa de publicacao; a captura para o ArUco roda no fps nativo
+CAMERA_STREAM_JPEG_QUALITY = 80
 
 # ---- Area de aquisicao (cm) ----
 # Referencial do mundo: origem no vertice superior-esquerdo da area, x para a
@@ -64,7 +70,8 @@ GRIP_HOLD_DELAY = 1.0         # depois de fechar
 PREP_SETTLE_DELAY = 1.0       # depois de o empurrador chegar a pre-posicao
 
 # ---- Separacao ----
-ZONE = "norte"                # unica zona nesta fase
+# Cinco zonas, uma por regiao; mesmos nomes do firmware (config.h Z1..Z5).
+ZONES = ["norte", "nordeste", "centro-oeste", "sudeste", "sul"]
 DET_TIMEOUT = 60.0            # espera pela passagem da caixinha no sensor
 # A latencia entre DET e empurrao e do firmware (PUSHER_DET_DELAY_MS): quem
 # empurra na deteccao e ele, sem passar pelo PC.
@@ -76,7 +83,29 @@ CONVEYOR_DIRECTION = -1       # 1 horario, -1 anti-horario
 CONVEYOR_RAMP_TIME = 1.0      # s de rampa de aceleracao (a parada e imediata)
 
 
-# ---- Roteamento provisorio (sem banco) ----
+# ---- Roteamento mockado (sem banco) ----
+# ArUco 10-21 -> zona (regiao) e estado. Cinco regioes, duas por zona;
+# direcao segue a convencao do calibration-tool: o 1o estado de cada regiao
+# gira ccw, o 2o cw. Enquanto nao ha banco, e so essa tabela.
+ROTEAMENTO = {
+    10: ("norte", "RO", "ccw"),
+    11: ("norte", "AC", "cw"),
+    12: ("nordeste", "BA", "ccw"),
+    13: ("nordeste", "CE", "cw"),
+    14: ("centro-oeste", "GO", "ccw"),
+    15: ("centro-oeste", "MT", "cw"),
+    16: ("sudeste", "SP", "ccw"),
+    17: ("sudeste", "RJ", "cw"),
+    18: ("sul", "PR", "ccw"),
+    19: ("sul", "RS", "cw"),
+    20: ("norte", "RO", "ccw"),
+    21: ("norte", "AC", "cw"),
+}
+
+
 def route(marker_id):
-    """ID par -> Rondonia (empurrador cw); impar -> Acre (ccw)."""
-    return ("RO", "cw") if marker_id % 2 == 0 else ("AC", "ccw")
+    """(zona, estado, direcao) mockado pelo ID do marcador ArUco (10-21)."""
+    try:
+        return ROTEAMENTO[marker_id]
+    except KeyError:
+        raise ValueError(f"marcador {marker_id} sem roteamento (mock cobre 10-21)") from None

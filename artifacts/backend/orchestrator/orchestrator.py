@@ -6,10 +6,11 @@ firmware (mv area, mv dest, mv home); a diferenca e que aqui o alvo da
 aquisicao pode ser interpolado pela visao, em vez de um canto fixo.
 
 run_sorting_cycle e o ciclo desta fase: identifica a caixinha pela camera,
-decide o destino pela paridade do ID, prepara e arma o empurrador da zona,
-pega (canto fixo ou alvo interpolado, conforme ENABLE_LOCALIZATION), entrega
-na esteira, volta a HOME e espera o firmware confirmar o empurrao. Runner
-roda ciclos numa thread, no automatico ou sob demanda.
+decide o destino pela tabela mockada em config.route() (zona, estado,
+sentido), prepara e arma o empurrador da zona correspondente, pega (canto
+fixo ou alvo interpolado, conforme ENABLE_LOCALIZATION), entrega na esteira,
+volta a HOME e espera o firmware confirmar o empurrao. Runner roda ciclos
+numa thread, no automatico ou sob demanda.
 """
 
 import threading
@@ -18,6 +19,7 @@ from queue import Empty, Queue
 
 import config
 import kinematics
+from ev3_io import ConveyorError
 from serial_io import JOINTS, AckTimeout, ArduinoError, CommandError
 from vision import VisionError
 
@@ -148,7 +150,6 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
     """
     log = arm.log
     cfg = arm.cfg
-    zone = config.ZONE
 
     # 1. Identificacao (camera) ou ID forcado pelo console.
     if forced_id is not None:
@@ -158,9 +159,9 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
         pid = vision.identify()
         log(f"  identificado: marcador {pid}")
 
-    # 2. Roteamento provisorio: paridade -> estado -> sentido do empurrador.
-    state, direction = config.route(pid)
-    log(f"  destino: {state} -> empurrador {direction}")
+    # 2. Roteamento mockado: marcador -> zona (regiao), estado, sentido.
+    zone, state, direction = config.route(pid)
+    log(f"  destino: {state} ({zone}) -> empurrador {direction}")
 
     # 3. Empurrador declarado e energizado na pre-posicao do sentido, com um
     #    tempo para assentar, antes de o braco se mover. O sensor so e armado
@@ -202,9 +203,10 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
 
 class Runner(threading.Thread):
     """Executa ciclos numa thread propria, para o console continuar
-    respondendo. Modo automatico: enquanto a esteira estiver ligada e a
-    camera vir uma caixinha, roda um ciclo atras do outro. 'cycle N'
-    enfileira um ciclo com ID forcado, com ou sem automatico."""
+    respondendo. Modo automatico: liga a esteira sozinho antes de checar a
+    camera, roda um ciclo atras do outro enquanto houver caixinha, e desliga
+    a esteira ao final de cada ciclo. 'cycle N' enfileira um ciclo com ID
+    forcado, com ou sem automatico, sem mexer na esteira."""
 
     def __init__(self, arm, link, vision, conveyor, log=print):
         super().__init__(name="runner", daemon=True)
@@ -233,12 +235,12 @@ class Runner(threading.Thread):
             pass
         if not self.auto:
             raise Empty
-        if not self.conveyor.running:
-            self._warn_once("belt", "  automatico: esperando a esteira ('on')")
-            raise Empty
         if self.vision is None:
             self._warn_once("cam", "  automatico: sem camera; use 'cycle N'")
             raise Empty
+        if not self.conveyor.running:
+            self.conveyor.start()
+            self.log(f"  automatico: esteira ligada a {self.conveyor.speed}%, procurando caixinha")
         if self.vision.peek() is None:
             raise Empty
         self._warned.clear()
@@ -249,6 +251,11 @@ class Runner(threading.Thread):
             try:
                 forced = self._next()
             except Empty:
+                continue
+            except ConveyorError as exc:
+                self.log(f"!! {exc}")
+                self.failed = exc
+                self.auto = False
                 continue
             if forced is not None and not self.conveyor.running:
                 self.log("  aviso: esteira desligada; a caixinha nao vai chegar ao sensor")
@@ -265,10 +272,18 @@ class Runner(threading.Thread):
                     self.log(f"!! {exc}")
                     self.failed = exc
                 self.auto = False
-            except (AckTimeout, ValueError) as exc:
+            except (AckTimeout, ValueError, ConveyorError) as exc:
                 self.log(f"!! {exc}")
                 self.failed = exc
                 self.auto = False
             finally:
                 self.busy = False
+                if forced is None and self.conveyor.running:
+                    try:
+                        self.conveyor.stop()
+                    except ConveyorError as exc:
+                        self.log(f"!! {exc}")
+                        self.failed = exc
+                        self.auto = False
+                    self.log("  automatico: esteira desligada")
             self.log("")

@@ -139,13 +139,17 @@ class Conveyor:
     def _apply(self):
         """start_move nao aceita movimento em curso; para trocar a
         velocidade com a esteira ligada, solta e rearranca com rampa."""
-        if self.running:
-            self.motor.stop(brake=False)
-        self.motor.start_move(
-            speed=self.speed,
-            direction=config.CONVEYOR_DIRECTION,
-            ramp_up_time=config.CONVEYOR_RAMP_TIME,
-        )
+        try:
+            if self.running:
+                self.motor.stop(brake=False)
+            self.motor.start_move(
+                speed=self.speed,
+                direction=config.CONVEYOR_DIRECTION,
+                ramp_up_time=config.CONVEYOR_RAMP_TIME,
+            )
+        except Exception as exc:
+            self.running = False
+            raise ConveyorError(f"EV3 nao respondeu: {exc}") from exc
 
     def start(self):
         self._apply()
@@ -153,7 +157,11 @@ class Conveyor:
         self.log(f"  esteira: ligada a {self.speed}%")
 
     def stop(self):
-        self.motor.stop(brake=True)
+        try:
+            self.motor.stop(brake=True)
+        except Exception as exc:
+            self.running = False
+            raise ConveyorError(f"EV3 nao respondeu: {exc}") from exc
         self.running = False
         self.log("  esteira: desligada")
 
