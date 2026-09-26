@@ -33,6 +33,55 @@ número do marcador, a câmera o lê, o orquestrador consulta o destino na API e
 informa de volta o estágio da separação. A caixinha é sempre pega na mesma
 área de aquisição: a localização por visão foi descartada.
 
+## Rodar no Windows
+
+Caminho mais direto: não há regra de dispositivo para instalar nem driver
+para trocar. O Arduino aparece como porta COM e o EV3 é falado por HID, sem
+Zadig e sem `libusb`.
+
+Precisa de Python (testado no 3.14) e, para compilar os sketches, do
+`arduino-cli` ou da Arduino IDE. Os comandos partem da raiz do repositório.
+
+```
+py -m venv artifacts\backend\.venv
+artifacts\backend\.venv\Scripts\python -m pip install -r requirements.txt
+```
+
+O `requirements.txt` da raiz cobre o orquestrador, a visão, o EV3 e o add-on
+do DualSense num só ambiente. No Windows ele traz também o `hidapi`, que é o
+que permite conversar com o EV3 sem trocar o driver.
+
+### Executar
+
+Chamando o Python do ambiente direto, sem ativá-lo. Cada linha vale igual no
+Prompt de Comando e no PowerShell.
+
+Orquestrador completo:
+
+```
+artifacts\backend\.venv\Scripts\python artifacts\backend\orchestrator\main.py --port COM5
+```
+
+Sem EV3 e sem câmera, para testar o console e o braço:
+
+```
+artifacts\backend\.venv\Scripts\python artifacts\backend\orchestrator\main.py --port COM5 --assume-conveyor --no-camera
+```
+
+Diagnóstico da câmera e do DualSense:
+
+```
+artifacts\backend\.venv\Scripts\python artifacts\backend\cam\leitor_aruco.py --listar
+artifacts\backend\.venv\Scripts\python artifacts\hardware\roboarm-calibration-tool\ds-addon\diag.py --check
+```
+
+Troque `COM5` pela porta da sua placa: no Gerenciador de Dispositivos, o Uno
+R4 aparece em **Portas (COM e LPT)** como *USB Serial Device*, sem o nome
+"Arduino". Sem `--port`, os programas tentam achá-la pelo VID USB.
+
+Para a suíte de testes e a aplicação web, veja [Testes](#testes) e
+[Aplicação web](#aplicação-web) — nenhuma das duas depende da bancada.
+
 ## Rodar no Linux
 
 Os comandos abaixo partem da raiz do repositório. Em Debian/Ubuntu, instale
