@@ -106,3 +106,9 @@
 .queue-item--next {
   padding: 0.6rem 0.75rem;
 }
+
+/* Numero do marcador ArUco da caixa: o operador usa para achá-la fisicamente. */
+.queue-item-volume {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}

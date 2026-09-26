@@ -95,6 +95,32 @@ def route_api(marker_id):
 FONTES = {"mock": route_mock, "api": route_api}
 
 
+def report(marker_id, status):
+    """Informa a API em que pe esta a separacao: 'sorting' ao comecar,
+    'done' ao concluir, 'error' se o ciclo falhou. E o que alimenta a fila
+    da tela (a compra em 'sorting' e o item atual).
+
+    Nao levanta: o hardware ja agiu quando isto e chamado, e nao ha o que
+    desfazer se a API estiver fora. Devolve a mensagem de falha, para quem
+    chamou registrar no log, ou None se deu certo. Com ROUTE_SOURCE = 'mock'
+    nao ha a quem reportar: devolve None sem tentar."""
+    if config.ROUTE_SOURCE != "api":
+        return None
+    url = f"{config.API_BASE_URL.rstrip('/')}/purchase/{marker_id}/status"
+    corpo = json.dumps({"status": status}).encode("utf-8")
+    pedido = urllib.request.Request(
+        url, data=corpo, method="PATCH",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(pedido, timeout=config.API_TIMEOUT):
+            return None
+    except urllib.error.HTTPError as exc:
+        return f"API recusou o status '{status}' do marcador {marker_id}: {exc.code}"
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return f"nao deu para informar o status '{status}' do marcador {marker_id}: {exc}"
+
+
 def route(marker_id):
     """(zona, estado, sentido) do marcador, pela fonte de ROUTE_SOURCE."""
     try:

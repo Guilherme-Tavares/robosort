@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { ErrorRequestHandler } from 'express';
+import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 import { purchaseRouter } from './modules/purchase/purchase.routes';
 import { productsRouter } from './modules/products/products.routes';
 import { statesRouter } from './modules/states/states.routes';
@@ -12,6 +13,7 @@ app.use(express.json());
 app.use('/api', purchaseRouter);
 app.use('/api', productsRouter);
 app.use('/api', statesRouter);
+app.use('/api', dashboardRouter);
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const status = error instanceof HttpError ? error.status : 500;

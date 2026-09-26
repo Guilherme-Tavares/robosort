@@ -6,6 +6,8 @@ export type QueueProduct = Pick<Product, 'id' | 'name' | 'imageUrl' | 'type' | '
 
 export interface QueueEntry {
   id: number;
+  // Numero do marcador ArUco na caixa (o 'volume' da compra).
+  volume: number;
   product: QueueProduct;
   state: string;
   city: string;

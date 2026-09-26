@@ -21,10 +21,13 @@ function toQueueProduct(product: Product): QueueProduct {
 }
 
 let nextEntryId = 100;
+// Espelha a API: o numero do marcador comeca em 10 e sobe a cada compra.
+let nextVolume = 10;
 
 function buildEntry(product: Product, state: string, city: string): QueueEntry {
   return {
     id: nextEntryId++,
+    volume: nextVolume++,
     product: toQueueProduct(product),
     state,
     city,
@@ -79,7 +82,7 @@ export async function mockCreatePurchase(req: PurchaseRequest): Promise<Purchase
   const entry = buildEntry(product, req.state, req.city);
   waiting.push(entry);
 
-  return { id: entry.id };
+  return { id: entry.id, volume: entry.volume };
 }
 
 export async function mockGetQueue(): Promise<QueueSnapshot> {

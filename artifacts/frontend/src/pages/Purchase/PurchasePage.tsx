@@ -19,6 +19,8 @@ export function PurchasePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<'success' | 'error' | null>(null);
+  // Numero do marcador da compra recem-criada: e o que o operador cola na caixa.
+  const [volume, setVolume] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -62,7 +64,8 @@ export function PurchasePage() {
     setFeedback(null);
 
     try {
-      await createPurchase({ productId: selectedProduct.id, state: uf, city });
+      const criada = await createPurchase({ productId: selectedProduct.id, state: uf, city });
+      setVolume(criada.volume);
       setFeedback('success');
       clearSelection();
     } catch {
@@ -78,8 +81,13 @@ export function PurchasePage() {
 
       {feedback === 'success' && (
         <p className="ui-message ui-message--success">
-          Compra registrada! O pedido entrou na fila de separação.{' '}
-          <Link to="/fila">Acompanhar na fila</Link>
+          Compra registrada!{' '}
+          {volume !== null && (
+            <>
+              Use a caixa de marcador <strong>{volume}</strong>.{' '}
+            </>
+          )}
+          O pedido entrou na fila de separação. <Link to="/fila">Acompanhar na fila</Link>
         </p>
       )}
       {feedback === 'error' && (

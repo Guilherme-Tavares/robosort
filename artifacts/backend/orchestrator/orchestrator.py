@@ -164,6 +164,27 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
     zone, state, direction = routing.route(pid)
     log(f"  destino: {state} ({zone}) -> empurrador {direction}")
 
+    # A tela de fila le o estagio da compra na API: marcar 'sorting' aqui e
+    # o que faz a caixinha aparecer como "em separacao agora".
+    aviso = routing.report(pid, "sorting")
+    if aviso:
+        log(f"  -- {aviso}")
+
+    try:
+        return _run_from_sorting(arm, link, vision, log, cfg, pid, zone, state, direction)
+    except BaseException:
+        # Ciclo que nao chegou ao fim deixaria a compra em 'sorting', e ela
+        # apareceria como "em separacao agora" para sempre na tela.
+        falha = routing.report(pid, "error")
+        if falha:
+            log(f"  -- {falha}")
+        raise
+
+
+def _run_from_sorting(arm, link, vision, log, cfg, pid, zone, state, direction):
+    """Do empurrador ate o fim do ciclo. Separado so para o 'error' acima
+    valer para tudo que vem depois de a compra ser marcada 'sorting'."""
+
     # 3. Empurrador declarado e energizado na pre-posicao do sentido, com um
     #    tempo para assentar, antes de o braco se mover. O sensor so e armado
     #    na entrega, imediatamente antes de a garra abrir (ver deliver):
@@ -198,6 +219,9 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
             link.disarm(zone)
             raise Aborted(f"sem deteccao em {config.DET_TIMEOUT:.0f} s; sensor desarmado")
         log(f"  {zone}: empurrou ({direction})")
+    aviso = routing.report(pid, "done")
+    if aviso:
+        log(f"  -- {aviso}")
     log(f"ciclo concluido: caixinha {pid} -> {state}")
     return pid, state
 

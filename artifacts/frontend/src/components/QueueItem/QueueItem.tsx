@@ -43,7 +43,9 @@ export function QueueItem({ entry, variant, position }: QueueItemProps) {
       <div className={classNames}>
         {position !== undefined && <span className="queue-item-position">#{position}</span>}
         <div className="queue-item-info">
-          <span className="queue-item-product">{entry.product.name}</span>
+          <span className="queue-item-product">
+            <span className="queue-item-volume">#{entry.volume}</span> {entry.product.name}
+          </span>
           <span className="queue-item-destination">{destination}</span>
         </div>
         <StatusBadge status={entry.status} />
@@ -64,7 +66,7 @@ export function QueueItem({ entry, variant, position }: QueueItemProps) {
           <span className="queue-item-product">{entry.product.name}</span>
           <span className="queue-item-destination">{destination}</span>
           <span className="queue-item-meta">
-            {entry.product.type} · {entry.product.volume} vol.
+            Caixa {entry.volume} · {entry.product.type} · {entry.product.volume} vol.
           </span>
         </div>
       </div>

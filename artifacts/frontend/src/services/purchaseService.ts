@@ -1,4 +1,4 @@
-import { USE_MOCK, httpPost } from './api';
+import { USE_MOCK, httpGet, httpPost } from './api';
 import { mockCreatePurchase } from './mockBackend';
 import { products } from '../mocks/products';
 import type { Product } from '../types/product';
@@ -8,10 +8,12 @@ export async function createPurchase(req: PurchaseRequest): Promise<PurchaseResp
   if (USE_MOCK) {
     return mockCreatePurchase(req);
   }
-  return httpPost<PurchaseRequest, PurchaseResponse>('/api/purchases', req);
+  return httpPost<PurchaseRequest, PurchaseResponse>('/api/purchase', req);
 }
 
 export async function getProducts(): Promise<Product[]> {
-  // Ponto de integração: trocar por httpGet<Product[]>('/api/products') quando existir.
-  return products;
+  if (USE_MOCK) {
+    return products;
+  }
+  return httpGet<Product[]>('/api/products');
 }

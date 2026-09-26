@@ -28,8 +28,17 @@ npm run dev
 - `GET /api/products`: lista produtos cadastrados, incluindo `price`.
 - `GET /api/states`: lista estados cadastrados com regiao.
 - `POST /api/purchase`: cria uma compra com o payload de `PurchaseRequest`.
-- `POST /api/purchases`: alias compativel com o frontend atual.
-- `GET /api/purchase/:volume`: retorna estado e regiao usando o volume da compra, nao o id.
+  Responde `{ id, volume }`; o **volume** é o número do marcador ArUco a colar
+  na caixa, gerado a partir de 10 e incrementado a cada compra.
+- `GET /api/purchase/:volume`: destino da compra (`state`, `region`). É o que o
+  orquestrador consulta depois de a câmera ler a caixa.
+- `PATCH /api/purchase/:volume/status`: o orquestrador informa o estágio da
+  separação — `sorting` ao começar, `done` ao concluir, `error` se o ciclo
+  falhou. Só uma compra fica em `sorting`: ao marcar uma, qualquer outra que
+  tenha ficado presa nesse estado cai para `error`.
+- `GET /api/queue`: fila da tela — `last` (último concluído), `current` (o que
+  está em separação) e `next` (até 5 pendentes, por ordem de marcador).
+- `GET /api/dashboard`: totais por região, agregados das compras.
 
 Payload de compra:
 

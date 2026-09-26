@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Encaminha /api para o backend rodando localmente durante o desenvolvimento.
+      // Encaminha /api para a API (artifacts/backend/api), que sobe na 3000.
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },

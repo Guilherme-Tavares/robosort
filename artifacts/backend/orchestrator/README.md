@@ -173,6 +173,12 @@ compartimento errado sem ninguém perceber. Duas falhas são distinguidas:
 - **caixinha sem pedido** (404) — caso de operação: aborta só o ciclo (`--`), o automático segue
 - **API fora, resposta inválida, região desconhecida** — infraestrutura: para o automático (`!!`)
 
+O orquestrador também **reporta** o estágio de volta: `sorting` ao começar o
+ciclo, `done` ao concluir, `error` se o ciclo falhou depois de já ter
+marcado `sorting` (senão a compra ficaria "em separação agora" para sempre
+na tela). É o que alimenta `GET /api/queue`. Falha ao reportar não derruba o
+ciclo — o hardware já agiu, não há o que desfazer — só registra `--` no log.
+
 O que **não** vem do banco é o sentido do empurrador: de que lado fica o
 compartimento de cada estado é geometria da bancada, e mora em
 `config.SENTIDO_POR_UF`. O banco diz que o pedido vai para o Acre; a tabela
