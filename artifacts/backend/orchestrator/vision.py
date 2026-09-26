@@ -162,29 +162,36 @@ class Vision:
     # ------------------------------------------------------- identificacao
 
     def peek(self):
-        """ID de produto visivel neste frame, ou None. Barato; para o modo
-        automatico saber se ha o que identificar."""
+        """Menor ID de produto visivel neste frame, ou None. Barato; para o
+        modo automatico saber se ha o que identificar."""
         found = self.products(self.detect(self.frame()))
-        return next(iter(found), None)
+        return min(found, default=None)
 
     def identify(self):
-        """ID da caixinha na area. Exige o mesmo ID em IDENTIFY_MIN_HITS
-        frames, para nao agir sobre um falso positivo de um frame so."""
+        """ID da caixinha a operar. Exige o mesmo ID em IDENTIFY_MIN_HITS
+        frames, para nao agir sobre um falso positivo de um frame so; com
+        mais de uma caixinha na cena, opera a de **menor ID**, para a ordem
+        nao depender de qual marcador o detector viu primeiro."""
         hits = Counter()
         for _ in range(config.IDENTIFY_ATTEMPTS):
             found = self.products(self.detect(self.frame()))
             for i in found:
                 hits[i] += 1
-            if hits and hits.most_common(1)[0][1] >= config.IDENTIFY_MIN_HITS:
+            if any(n >= config.IDENTIFY_MIN_HITS for n in hits.values()):
                 break
             time.sleep(config.IDENTIFY_INTERVAL)
         if not hits:
             raise VisionError("nenhum marcador de produto visivel")
-        pid, n = hits.most_common(1)[0]
-        if n < config.IDENTIFY_MIN_HITS:
-            raise VisionError(f"marcador {pid} instavel: visto em {n} de {config.IDENTIFY_ATTEMPTS} frames")
-        if len(hits) > 1:
-            self.log(f"    aviso: mais de um produto visivel {dict(hits)}; usando {pid}")
+        estaveis = [i for i, n in hits.items() if n >= config.IDENTIFY_MIN_HITS]
+        if not estaveis:
+            visto = ", ".join(f"{i} em {n}" for i, n in sorted(hits.items()))
+            raise VisionError(
+                f"nenhum marcador estavel em {config.IDENTIFY_ATTEMPTS} frames "
+                f"(minimo {config.IDENTIFY_MIN_HITS}; visto: {visto})"
+            )
+        pid = min(estaveis)
+        if len(estaveis) > 1:
+            self.log(f"    {len(estaveis)} produtos na cena {sorted(estaveis)}; opera o menor: {pid}")
         return pid
 
     # --------------------------------------------------------- localizacao

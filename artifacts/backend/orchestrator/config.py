@@ -81,6 +81,7 @@ EV3_PORT = "A"                # porta do motor no brick
 CONVEYOR_SPEED = 10           # % ; arranque brusco derruba a caixinha
 CONVEYOR_DIRECTION = -1       # 1 horario, -1 anti-horario
 CONVEYOR_RAMP_TIME = 1.0      # s de rampa de aceleracao (a parada e imediata)
+CONVEYOR_IDLE_STOP = 3.0      # s sem caixinha a vista, apos um ciclo, ate desligar
 
 
 # ---- Roteamento mockado (sem banco) ----

@@ -94,7 +94,7 @@ def console(link, arm, runner, conveyor):
                 print("  sem camera: o automatico nao tem como identificar; use 'cycle N'")
             else:
                 runner.auto = True
-                print("  automatico ligado" + ("" if conveyor.running else " (liga a esteira sozinho ao procurar caixinha)"))
+                print("  automatico ligado" + ("" if conveyor.running else " (liga a esteira quando ver uma caixinha)"))
         elif word == "pause":
             runner.auto = False
             print("  automatico pausado" + ("; o ciclo atual termina" if runner.busy else ""))

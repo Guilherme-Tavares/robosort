@@ -74,7 +74,7 @@ console. Os ciclos rodam numa thread própria; o console continua respondendo.
 ```
 on / off       liga e desliga a esteira (contínua, velocidade CONVEYOR_SPEED)
 vel N          velocidade da esteira em %
-start          automático: um ciclo a cada caixinha vista, com a esteira ligada
+start          automático: um ciclo a cada caixinha vista; cuida da esteira sozinho
 pause          para de iniciar ciclos (o atual termina)
 resume         retoma o automático
 cycle N        um ciclo com ID N, ignorando a câmera
@@ -94,13 +94,36 @@ disponível em `http://<ip-da-maquina>:8090/stream.mjpg` (porta em
 `VITE_CAMERA_URL`. `--no-camera-stream` mantém a câmera e o ciclo normais,
 só sem expor essa porta na rede.
 
+### Uma caixinha, um ciclo
+
+No automático roda **um ciclo por vez**. Enquanto um ciclo está em curso as
+leituras da câmera não valem — é o que impede a mesma caixinha, vista em
+dezenas de frames, de virar dezenas de operações. Terminado o ciclo, a
+próxima leitura vale.
+
+Com **mais de uma caixinha na cena**, opera a de **menor ID**, tanto no
+gatilho quanto na identificação: a ordem não depende de qual marcador o
+detector viu primeiro.
+
+Não há memória de IDs já operados: repor na cena uma caixinha que acabou de
+ser separada a faz ser operada de novo, de propósito.
+
+### A esteira no automático
+
+Liga quando a câmera vê uma caixinha, logo antes da identificação completa —
+assim a rampa de aceleração corre durante ela e a esteira já está em
+velocidade quando a caixinha chega. Entre ciclos seguidos ela nem chega a
+parar. Se um ciclo termina e nada aparece em `CONVEYOR_IDLE_STOP` (3 s), ela
+desliga.
+
+O automático só desliga a esteira que ele mesmo ligou: a que o operador
+ligou com `on` fica por conta dele, e `cycle N` não mexe nela (só avisa se
+estiver desligada).
+
 ### O ciclo
 
-Condições para o automático iniciar um ciclo: esteira ligada **e** câmera
-vendo uma caixinha. `cycle N` ignora as duas (avisa se a esteira estiver
-desligada).
-
-1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames) ou usa o N de `cycle`
+1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames; o menor, se
+   houver mais de um) ou usa o N de `cycle`
 2. Roteia pela tabela mockada em `config.ROTEAMENTO` (marcador 10-21 → zona/região, estado,
    sentido do empurrador; 5 regiões, 2 estados cada — sem banco por enquanto)
 3. `prep <zona> <sentido>` — empurrador da zona sorteada declarado e energizado na

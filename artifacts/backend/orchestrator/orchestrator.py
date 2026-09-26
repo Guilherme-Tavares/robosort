@@ -203,10 +203,22 @@ def run_sorting_cycle(arm, link, vision, forced_id=None):
 
 class Runner(threading.Thread):
     """Executa ciclos numa thread propria, para o console continuar
-    respondendo. Modo automatico: liga a esteira sozinho antes de checar a
-    camera, roda um ciclo atras do outro enquanto houver caixinha, e desliga
-    a esteira ao final de cada ciclo. 'cycle N' enfileira um ciclo com ID
-    forcado, com ou sem automatico, sem mexer na esteira."""
+    respondendo.
+
+    Modo automatico: um ciclo por vez, sempre. Enquanto um ciclo roda, as
+    leituras da camera nao valem — e o que impede a mesma caixinha, vista em
+    dezenas de frames, de virar dezenas de operacoes. Terminado o ciclo, a
+    proxima leitura vale; nao ha memoria de IDs ja operados, entao repor na
+    cena uma caixinha ja separada a faz ser operada de novo, de proposito.
+
+    A esteira acompanha o trabalho: liga quando a camera ve uma caixinha e
+    fica ligada enquanto houver caixinha a cada ciclo; se um ciclo termina e
+    nada aparece em CONVEYOR_IDLE_STOP segundos, ela desliga. So desliga
+    sozinha a esteira que ela mesma ligou: a que o operador ligou com 'on'
+    fica por conta dele.
+
+    'cycle N' enfileira um ciclo com ID forcado, com ou sem automatico, sem
+    mexer na esteira."""
 
     def __init__(self, arm, link, vision, conveyor, log=print):
         super().__init__(name="runner", daemon=True)
@@ -218,6 +230,8 @@ class Runner(threading.Thread):
         self.failed = None               # ultima falha do braco, se houver
         self._quit = threading.Event()
         self._warned = set()
+        self._belt_by_auto = False       # a esteira ligada foi o automatico?
+        self._idle_since = None          # desde quando sem caixinha a vista
 
     def quit(self):
         self._quit.set()
@@ -227,6 +241,23 @@ class Runner(threading.Thread):
             self._warned.add(key)
             self.log(msg)
 
+    def _idle_stop(self):
+        """Desliga a esteira que o automatico ligou, depois de
+        CONVEYOR_IDLE_STOP sem caixinha a vista."""
+        if self._idle_since is None or not self._belt_by_auto or not self.conveyor.running:
+            return
+        if time.monotonic() - self._idle_since < config.CONVEYOR_IDLE_STOP:
+            return
+        self._idle_since = None
+        self._belt_by_auto = False
+        try:
+            self.conveyor.stop()
+            self.log(f"  automatico: {config.CONVEYOR_IDLE_STOP:.0f} s sem caixinha; esteira desligada")
+        except ConveyorError as exc:
+            self.log(f"!! {exc}")
+            self.failed = exc
+            self.auto = False
+
     def _next(self):
         """(id_forcado | None) se ha ciclo a rodar agora; senao levanta Empty."""
         try:
@@ -234,15 +265,24 @@ class Runner(threading.Thread):
         except Empty:
             pass
         if not self.auto:
+            self._idle_stop()
             raise Empty
         if self.vision is None:
             self._warn_once("cam", "  automatico: sem camera; use 'cycle N'")
             raise Empty
+        if self.vision.peek() is None:
+            self._idle_stop()
+            raise Empty
+
+        # Ha caixinha: a esteira liga agora, antes da identificacao completa,
+        # para a rampa de aceleracao correr durante ela e a esteira ja estar
+        # em velocidade quando a caixinha chegar. Entre ciclos seguidos ela
+        # nem chega a desligar.
+        self._idle_since = None
         if not self.conveyor.running:
             self.conveyor.start()
-            self.log(f"  automatico: esteira ligada a {self.conveyor.speed}%, procurando caixinha")
-        if self.vision.peek() is None:
-            raise Empty
+            self._belt_by_auto = True
+            self.log(f"  automatico: caixinha a vista; esteira ligada a {self.conveyor.speed}%")
         self._warned.clear()
         return None
 
@@ -278,12 +318,8 @@ class Runner(threading.Thread):
                 self.auto = False
             finally:
                 self.busy = False
-                if forced is None and self.conveyor.running:
-                    try:
-                        self.conveyor.stop()
-                    except ConveyorError as exc:
-                        self.log(f"!! {exc}")
-                        self.failed = exc
-                        self.auto = False
-                    self.log("  automatico: esteira desligada")
+                # A esteira fica: se outra caixinha aparecer, o proximo ciclo
+                # ja a encontra em velocidade. O relogio de ocioso comeca aqui.
+                if forced is None:
+                    self._idle_since = time.monotonic()
             self.log("")
