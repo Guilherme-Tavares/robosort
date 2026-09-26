@@ -14,6 +14,10 @@ pyusb/libusb, que o ev3_dc usa fora do macOS, nao consegue escrever nele
 _use_hidapi() liga esse caminho no Windows sem trocar driver (sem Zadig) e
 sem quebrar o software LEGO.
 
+No Linux o caminho nativo do ev3_dc e pyusb/libusb. O acesso sem root vem da
+regra config/udev/99-robosort.rules; falhas de backend ou permissao recebem
+uma orientacao especifica na abertura da esteira.
+
 Sem ENABLE_CONVEYOR, ou com --assume-conveyor, a esteira sai da jogada:
 AssumedConveyor nasce "ligada" e 'on'/'off' so mudam o que o orquestrador
 assume. Serve quando a esteira e ligada pelo brick ou por outro PC, ou quando
@@ -27,6 +31,15 @@ import config
 
 class ConveyorError(RuntimeError):
     pass
+
+
+def _ajuda_linux_usb():
+    if platform.system() != "Linux":
+        return ""
+    return (
+        " No Linux, instale o libusb e as regras udev de config/udev/99-robosort.rules; "
+        "depois reconecte o EV3."
+    )
 
 
 def _use_hidapi(ev3_module):
@@ -107,7 +120,10 @@ class Conveyor:
             self.motor = ev3.Motor(port, protocol=ev3.USB)
             self.motor.__enter__()
         except Exception as exc:
-            raise ConveyorError(f"EV3 nao conectou: {exc} (ou use --assume-conveyor)") from exc
+            raise ConveyorError(
+                f"EV3 nao conectou: {exc}.{_ajuda_linux_usb()} "
+                "Use --assume-conveyor para operar sem o controle USB."
+            ) from exc
         self.log("  EV3 conectado")
         return self
 
@@ -123,13 +139,17 @@ class Conveyor:
     def _apply(self):
         """start_move nao aceita movimento em curso; para trocar a
         velocidade com a esteira ligada, solta e rearranca com rampa."""
-        if self.running:
-            self.motor.stop(brake=False)
-        self.motor.start_move(
-            speed=self.speed,
-            direction=config.CONVEYOR_DIRECTION,
-            ramp_up_time=config.CONVEYOR_RAMP_TIME,
-        )
+        try:
+            if self.running:
+                self.motor.stop(brake=False)
+            self.motor.start_move(
+                speed=self.speed,
+                direction=config.CONVEYOR_DIRECTION,
+                ramp_up_time=config.CONVEYOR_RAMP_TIME,
+            )
+        except Exception as exc:
+            self.running = False
+            raise ConveyorError(f"EV3 nao respondeu: {exc}") from exc
 
     def start(self):
         self._apply()
@@ -137,7 +157,11 @@ class Conveyor:
         self.log(f"  esteira: ligada a {self.speed}%")
 
     def stop(self):
-        self.motor.stop(brake=True)
+        try:
+            self.motor.stop(brake=True)
+        except Exception as exc:
+            self.running = False
+            raise ConveyorError(f"EV3 nao respondeu: {exc}") from exc
         self.running = False
         self.log("  esteira: desligada")
 

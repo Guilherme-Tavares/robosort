@@ -5,7 +5,7 @@ Monitor Serial: 'min', 'max' e 'dump' continuam sendo feitos por la.
 
 Uso:
     python main.py                 conecta ao Arduino e opera
-    python main.py --port COM5     forca a porta serial
+    python main.py --port PORTA    forca a porta serial
     python main.py --dry-run       sem Arduino; so imprime os comandos
     python main.py --quiet         nao ecoa o trafego serial
 
@@ -350,7 +350,8 @@ def open_joystick():
 
 def main():
     parser = argparse.ArgumentParser(description="Braco de calibracao por DualSense")
-    parser.add_argument("--port", help="porta serial do Arduino (ex: COM5)")
+    exemplo_porta = "/dev/ttyACM0" if sys.platform.startswith("linux") else "COM5"
+    parser.add_argument("--port", help=f"porta serial do Arduino (ex: {exemplo_porta})")
     parser.add_argument("--dry-run", action="store_true",
                         help="nao abre a serial; so imprime os comandos")
     parser.add_argument("--quiet", action="store_true",

@@ -23,22 +23,25 @@ Importante: neste modo, o EV3 nao roda o arquivo `.py` dentro dele. O programa r
 
 ## 2. Instalar a biblioteca no computador
 
-No terminal do computador, execute:
+No Linux, prefira preparar o ambiente completo a partir da raiz do
+repositorio:
 
 ```bash
-pip install ev3_dc
+./scripts/instalar-linux.sh
+source .venv/bin/activate
 ```
 
-Se o seu computador usa mais de uma versao do Python, talvez seja necessario usar:
+Ou instale somente as dependencias do orquestrador:
 
 ```bash
-python -m pip install ev3_dc
+python3 -m venv .venv
+.venv/bin/python -m pip install -r artifacts/backend/orchestrator/requirements.txt
 ```
 
-ou:
+De forma avulsa, a biblioteca tambem pode ser instalada com:
 
 ```bash
-py -m pip install ev3_dc
+python -m pip install ev3_dc pyusb
 ```
 
 ## 3. Conferir a porta do motor no codigo
@@ -109,7 +112,30 @@ is_running = False
 - A biblioteca `ev3_dc` usa comandos diretos do EV3 e pode se comunicar por USB com o sistema original.
 - Se a conexao falhar, teste outro cabo USB. Alguns cabos servem apenas para carregar energia e nao transmitem dados.
 
-## 8. Erro `usb.core.NoBackendError: No backend available`
+## 8. Preparar o USB no Linux
+
+No Linux, o `ev3_dc` usa `pyusb`, que depende do `libusb` do sistema. Em
+Debian/Ubuntu, a partir da raiz do repositorio:
+
+```bash
+sudo apt install libusb-1.0-0 udev
+sudo groupadd -f plugdev
+sudo usermod -aG plugdev "$USER"
+sudo install -m 0644 config/udev/99-robosort.rules /etc/udev/rules.d/99-robosort.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Encerre a sessao e entre novamente, ligue o EV3 no sistema LEGO original e
+reconecte o cabo na porta `PC`. Nao rode o programa com `sudo`: isso mascara
+permissoes incorretas e usa outro ambiente Python.
+
+Para conferir se o sistema ve o brick, execute `lsusb`; o EV3 deve aparecer
+com `ID 0694:0005`. Se ele aparece no `lsusb`, mas o programa recebe
+`Access denied`, a regra udev ainda nao foi aplicada a conexao atual:
+recarregue as regras e reconecte o cabo.
+
+## 9. Erro `usb.core.NoBackendError: No backend available` no Windows
 
 Esse erro significa que o Python encontrou o pacote `pyusb`, mas o Windows nao encontrou uma biblioteca USB nativa para ele usar.
 
@@ -172,7 +198,7 @@ py check_usb_backend.py
 
 Tenha cuidado ao usar o Zadig: selecione o dispositivo EV3 correto antes de trocar o driver.
 
-## 9. Erro `[Errno 5] Input/Output Error`
+## 10. Erro `[Errno 5] Input/Output Error` no Windows
 
 Esse erro geralmente aparece quando o Python ja encontrou o backend USB, mas nao conseguiu conversar corretamente com o EV3.
 
@@ -214,7 +240,7 @@ Se continuar dando `[Errno 5]`, instale um driver usando o Zadig:
 
 Aviso: trocar o driver pode afetar a comunicacao com o software LEGO original no Windows. Se isso acontecer, e possivel voltar o driver pelo Gerenciador de Dispositivos do Windows.
 
-## 10. Referencias
+## 11. Referencias
 
 - Documentacao da biblioteca `ev3_dc`: https://ev3-dc.readthedocs.io/
 - Exemplos de motor com USB: https://ev3-dc.readthedocs.io/en/latest/examples_motor.html

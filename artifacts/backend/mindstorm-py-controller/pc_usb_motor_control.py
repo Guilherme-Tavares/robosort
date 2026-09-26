@@ -1,11 +1,14 @@
 r"""Controle manual da esteira LEGO pelo EV3, via USB (porta PC do brick).
 
-    ..\.venv\Scripts\python pc_usb_motor_control.py     (venv de artifacts/backend)
+    ../../../.venv/bin/python pc_usb_motor_control.py     (venv na raiz do repositorio)
 
 No Windows o EV3 e um dispositivo HID e o pyusb/libusb que o ev3_dc usa fora
 do macOS nao consegue escrever nele (Errno 5). O ev3_dc ja tem um caminho por
 hidapi, preso ao macOS; _use_hidapi() o liga no Windows, sem trocar driver.
 Mesma solucao de orchestrator/ev3_io.py.
+
+No Linux o ev3_dc usa pyusb/libusb; o acesso ao brick e liberado pela regra
+config/udev/99-robosort.rules instalada conforme o README principal.
 """
 
 import platform
@@ -161,12 +164,16 @@ def main():
     except OSError as error:
         print("Nao foi possivel conectar/controlar o EV3.")
         print("Detalhe do erro:", error)
-        if getattr(error, "errno", None) == 5:
+        if platform.system() == "Linux":
+            print("No Linux, confira o libusb e as regras udev de config/udev/99-robosort.rules.")
+        elif getattr(error, "errno", None) == 5:
             print("Provavel causa: driver USB do EV3 incompativel com libusb no Windows.")
             print("Veja no Markdown a secao sobre Errno 5 e instalacao do driver WinUSB/libusbK.")
     except Exception as error:
         print("Nao foi possivel conectar/controlar o EV3.")
         print("Detalhe do erro:", error)
+        if platform.system() == "Linux":
+            print("Confira o libusb e as regras udev de config/udev/99-robosort.rules.")
 
 
 if __name__ == "__main__":

@@ -36,19 +36,35 @@ requirements.txt
 
 ## Instalação
 
-```
-python -m venv .venv          # em artifacts/backend
-.venv/Scripts/pip install -r orchestrator/requirements.txt
+No Linux, a partir da raiz do repositório:
+
+```bash
+./scripts/instalar-linux.sh
+source .venv/bin/activate
 ```
 
-EV3 pela USB (porta `PC` do brick, firmware LEGO original): no Windows o brick é um dispositivo HID e o `ev3_io.py` fala com ele por `hidapi`, sem trocar driver — nada de Zadig nem `libusb-1.0.dll`. Basta ligar o brick e conectar o cabo antes de abrir o console.
+O procedimento completo, incluindo as permissões de Arduino e EV3, está no
+[README principal](../../../README.md#rodar-no-linux). Para instalar somente
+este módulo manualmente:
+
+```
+python3 -m venv .venv
+.venv/bin/python -m pip install -r artifacts/backend/orchestrator/requirements.txt
+```
+
+EV3 pela USB (porta `PC` do brick, firmware LEGO original): no Linux o
+`ev3_io.py` usa `pyusb`/`libusb` e a regra
+`config/udev/99-robosort.rules`. Ligue o brick e conecte o cabo antes de abrir
+o console. No Windows, o código usa `hidapi`, sem trocar o driver — nada de
+Zadig nem `libusb-1.0.dll`.
 
 ## Uso
 
 ```
-python main.py [--port COMx] [--camera K] [--echo] [--no-camera] [--assume-conveyor]
+python main.py [--port /dev/ttyACM0] [--camera K] [--echo] [--no-camera]
+                [--no-camera-stream] [--assume-conveyor]
 
-python serial_io.py [--port COMx]   REPL sobre a serial; DET e PUSHED aparecem quando chegam
+python serial_io.py [--port /dev/ttyACM0]   REPL sobre a serial; DET e PUSHED aparecem quando chegam
 python vision.py [--camera K]       janela ao vivo: marcadores, homografia, coordenadas
 ```
 
@@ -72,6 +88,12 @@ caixinha levada à mão até o sensor; `on`/`off` só mudam a suposição.
 `--no-camera`: sem visão; só `cycle N`. Se a câmera não abrir, o console
 avisa e segue sem ela.
 
+Com a câmera ligada, o mesmo feed usado na identificação ArUco fica
+disponível em `http://<ip-da-maquina>:8090/stream.mjpg` (porta em
+`config.CAMERA_STREAM_PORT`) — é o que a tela de Fila do site mostra via
+`VITE_CAMERA_URL`. `--no-camera-stream` mantém a câmera e o ciclo normais,
+só sem expor essa porta na rede.
+
 ### O ciclo
 
 Condições para o automático iniciar um ciclo: esteira ligada **e** câmera
@@ -79,13 +101,14 @@ vendo uma caixinha. `cycle N` ignora as duas (avisa se a esteira estiver
 desligada).
 
 1. Identifica o ID pela câmera (mesmo ID em `IDENTIFY_MIN_HITS` frames) ou usa o N de `cycle`
-2. Roteia: par → Rondônia → `cw`; ímpar → Acre → `ccw`
-3. `prep norte <sentido>` — empurrador declarado e energizado na pré-posição, antes de o
-   braço se mover; `PREP_SETTLE_DELAY` para assentar
+2. Roteia pela tabela mockada em `config.ROTEAMENTO` (marcador 10-21 → zona/região, estado,
+   sentido do empurrador; 5 regiões, 2 estados cada — sem banco por enquanto)
+3. `prep <zona> <sentido>` — empurrador da zona sorteada declarado e energizado na
+   pré-posição, antes de o braço se mover; `PREP_SETTLE_DELAY` para assentar
 4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
-   ponto de soltura, **`arm norte <sentido>` e só então abre a garra** — o sensor já
+   ponto de soltura, **`arm <zona> <sentido>` e só então abre a garra** — o sensor já
    escuta quando a caixinha cai, e antes disso nada deve passar por ele; fecha, recua; HOME
-5. Espera `PUSHED norte` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
+5. Espera `PUSHED <zona>` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
    pré-posição; o `DET` pode ter chegado durante o HOME e fica na fila até aqui
 
 O próximo ciclo só começa com o `PUSHED` recebido e o braço em HOME. Sem

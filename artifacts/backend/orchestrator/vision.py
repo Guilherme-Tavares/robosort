@@ -5,6 +5,11 @@ marcador. Localizacao (ENABLE_LOCALIZATION): onde ela esta, em cm, pela
 homografia da folha; so entra no ciclo quando os valores-guia dos cantos
 estiverem confiaveis.
 
+A camera em si (abrir o dispositivo, detectar marcadores ArUco e devolver os
+IDs) vive em artifacts/backend/cam/leitor_aruco.py; este modulo so importa
+essas funcoes e constroi a logica de negocio em cima (homografia, roteamento
+por posicao).
+
 Homografia congelada: calculada quando os quatro marcadores de referencia
 estao visiveis, guardada, e reusada enquanto o braco obstrui a folha. Usa os
 16 cantos dos marcadores, nao os 4 centros: com quatro pontos a solucao e
@@ -14,7 +19,9 @@ Uso direto, para posicionar a camera:
     python vision.py [--camera K]     janela ao vivo com deteccoes e coordenadas
 """
 
+import os
 import sys
+import threading
 import time
 from collections import Counter
 
@@ -22,6 +29,9 @@ import cv2
 import numpy as np
 
 import config
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cam"))
+import leitor_aruco  # noqa: E402  (precisa do sys.path acima)
 
 
 class VisionError(RuntimeError):
@@ -31,20 +41,21 @@ class VisionError(RuntimeError):
 # ------------------------------------------------------------------ camera
 
 def open_camera(index=None):
-    """Abre a camera pedida, ou a primeira que entregar um frame."""
-    candidates = [index] if index is not None else range(5)
-    for i in candidates:
-        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(i)
-        if not cap.isOpened():
-            cap.release()
-            continue
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.CAMERA_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
-        ok, frame = cap.read()
-        if ok and frame is not None:
-            return cap, i
-        cap.release()
-    raise VisionError("nenhuma camera entregou frame; passe --camera K")
+    """Abre a camera do projeto (leitor_aruco.abrir_camera): indice
+    explicito se dado, senao a padrao por nome USB (CAMERA_PADRAO)."""
+    escolha = index if index is not None else leitor_aruco.CAMERA_PADRAO
+    try:
+        cap, indice, _ = leitor_aruco.abrir_camera(
+            escolha, largura=config.CAMERA_WIDTH, altura=config.CAMERA_HEIGHT
+        )
+    except leitor_aruco.CameraError as exc:
+        raise VisionError(str(exc)) from exc
+    return cap, indice
+
+
+def _dict_size(aruco_dict_name):
+    """'DICT_4X4_50' -> 50, para leitor_aruco.criar_detector."""
+    return int(aruco_dict_name.rsplit("_", 1)[-1])
 
 
 # ---------------------------------------------------------------- geometria
@@ -78,15 +89,31 @@ CENTER_MAX = config.AREA_SIZE_CM - config.BOX_SIZE_CM / 2
 # ---------------------------------------------------------------- detector
 
 class Vision:
-    def __init__(self, camera_index=None, log=print):
+    def __init__(self, camera_index=None, log=print, stream=None):
         self.log = log
         self.cap, self.camera_index = open_camera(camera_index)
-        dictionary = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, config.ARUCO_DICT))
-        self.detector = cv2.aruco.ArucoDetector(dictionary, cv2.aruco.DetectorParameters())
+        self.detector = leitor_aruco.criar_detector(_dict_size(config.ARUCO_DICT))
         self.H = None                  # homografia congelada: imagem -> cm
         self.H_at = None
 
+        # Uma so thread le a camera (cap.read() nao e seguro entre threads):
+        # alimenta tanto frame() quanto, se houver, o stream mjpeg da web.
+        self._stream = stream
+        self._frame_lock = threading.Lock()
+        self._latest = None
+        self._latest_ok = threading.Event()
+        self._last_publish = 0.0
+        self._grab_stop = threading.Event()
+        self._grab_thread = threading.Thread(target=self._grab_loop, daemon=True, name="vision-grab")
+        self._grab_thread.start()
+
+    def attach_stream(self, broadcaster):
+        """Liga o publicador mjpeg depois de a camera ja estar aberta."""
+        self._stream = broadcaster
+
     def close(self):
+        self._grab_stop.set()
+        self._grab_thread.join(timeout=2.0)
         if self.cap:
             self.cap.release()
             self.cap = None
@@ -97,18 +124,35 @@ class Vision:
     def __exit__(self, *exc):
         self.close()
 
+    def _grab_loop(self):
+        min_interval = 1.0 / config.CAMERA_STREAM_FPS
+        while not self._grab_stop.is_set():
+            ok, img = self.cap.read()
+            if not ok or img is None:
+                time.sleep(0.05)  # nao gira a CPU se a camera falhar por um tempo
+                continue
+            with self._frame_lock:
+                self._latest = img
+            self._latest_ok.set()
+            if self._stream is not None:
+                now = time.monotonic()
+                if now - self._last_publish >= min_interval:
+                    self._last_publish = now
+                    ok2, buf = cv2.imencode(
+                        ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, config.CAMERA_STREAM_JPEG_QUALITY]
+                    )
+                    if ok2:
+                        self._stream.publish(buf.tobytes())
+
     def frame(self):
-        ok, img = self.cap.read()
-        if not ok or img is None:
+        if not self._latest_ok.wait(timeout=5.0):
             raise VisionError("camera parou de entregar frames")
-        return img
+        with self._frame_lock:
+            return self._latest.copy()
 
     def detect(self, img):
         """{id: cantos (4x2 float32)} de tudo que estiver visivel."""
-        corners, ids, _ = self.detector.detectMarkers(img)
-        if ids is None:
-            return {}
-        return {int(i): c[0] for c, i in zip(corners, ids.ravel())}
+        return leitor_aruco.detectar_marcadores(img, self.detector)
 
     @staticmethod
     def products(found):

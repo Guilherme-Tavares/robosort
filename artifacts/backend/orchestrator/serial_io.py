@@ -14,7 +14,7 @@ responde ao interrompido antes do interruptor, a fila de pendentes pareia
 as duas respostas na ordem certa.
 
 Uso direto, para testar:
-    python serial_io.py [--port COMx]      REPL sobre a serial
+    python serial_io.py [--port PORTA]      REPL sobre a serial
 """
 
 import re
@@ -34,7 +34,7 @@ JOINTS = ("base", "garra", "altura", "alcance")
 INTERRUPTS = ("stop", "offall", "off")
 EVENTS = ("DET", "PUSHED")
 
-STATE_RE = re.compile(r"STATE (\w+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
+STATE_RE = re.compile(r"STATE ([\w-]+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
 CORNER_RE = re.compile(r"CORNER (\d) (\d+) (\d+) (\d+)$")
 APPROACH_RE = re.compile(r"APPROACH (\d+) (\d+)$")
 DROP_RE = re.compile(r"DROP (\d+) (\d+)$")
@@ -99,8 +99,8 @@ ARDUINO_VIDS = (0x2341, 0x2A03, 0x1A86)   # Arduino, Arduino.org, CH340 (clones)
 
 
 def find_port(hint=None):
-    """Porta do Arduino. Ignora as portas Bluetooth do Windows. O Uno R4
-    aparece como 'USB Serial Device' generico; o VID e que o identifica."""
+    """Porta do Arduino. Ignora portas seriais Bluetooth. O Uno R4 pode
+    aparecer com descricao generica; o VID e que o identifica."""
     if hint:
         return hint
     for port in list_ports.comports():
@@ -147,11 +147,25 @@ class Arduino:
     def open(self):
         port = find_port(self.port_hint)
         if port is None:
-            raise ArduinoError("Arduino nao encontrado. Conecte o USB ou passe --port COMx.")
+            exemplo = "/dev/ttyACM0" if sys.platform.startswith("linux") else "COM5"
+            raise ArduinoError(
+                f"Arduino nao encontrado. Conecte o USB ou passe --port {exemplo}."
+            )
         try:
             self.serial = serial.Serial(port, config.BAUD, timeout=0.05)
         except serial.SerialException as exc:
-            if isinstance(exc.__context__, PermissionError) or "Access is denied" in str(exc):
+            sem_permissao = (
+                isinstance(exc.__context__, PermissionError)
+                or getattr(exc, "errno", None) == 13
+                or "permission denied" in str(exc).lower()
+                or "access is denied" in str(exc).lower()
+            )
+            if sem_permissao and sys.platform.startswith("linux"):
+                raise ArduinoError(
+                    f"sem permissao para abrir {port}. Instale as regras udev do projeto "
+                    "e adicione seu usuario ao grupo dialout; depois reconecte o Arduino."
+                ) from exc
+            if sem_permissao:
                 raise ArduinoError(f"{port} em uso por outro programa (Monitor Serial do "
                                    f"Arduino IDE, outro console?). Feche-o e tente de novo.") from exc
             raise ArduinoError(f"nao abriu {port}: {exc}") from exc

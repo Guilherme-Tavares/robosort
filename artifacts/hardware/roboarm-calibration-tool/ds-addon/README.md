@@ -18,18 +18,35 @@ estar nessa velocidade, ou a saída vira lixo.
 
 ## Instalação
 
+No Linux, a forma recomendada é usar o ambiente único do projeto, a partir da
+raiz do repositório:
+
+```bash
+./scripts/instalar-linux.sh
+source .venv/bin/activate
 ```
-pip install -r requirements.txt
+
+Para instalar somente este add-on:
+
+```
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
 `pygame-ce` no lugar do `pygame`: em Python 3.14 o `pygame` ainda não publica
 wheel e tenta compilar do código-fonte. A API é a mesma.
 
+No Linux, o Arduino costuma aparecer como `/dev/ttyACM0` ou `/dev/ttyUSB0`.
+Instale as regras `config/udev/99-robosort.rules` conforme o
+[README principal](../../../../README.md#permissões-dos-dispositivos). O SDL
+normalmente recebe acesso ao DualSense pela sessão gráfica; se não receber,
+adicione o usuário ao grupo `input`, encerre a sessão e entre novamente.
+
 ## Uso
 
 ```
 python main.py                 conecta ao Arduino e opera
-python main.py --port COM5     força a porta serial
+python main.py --port /dev/ttyACM0  força a porta serial
 python main.py --dry-run       sem Arduino; só imprime os comandos
 python main.py --quiet         não ecoa o tráfego serial
 
@@ -108,7 +125,8 @@ Botões: `0` X, `1` Círculo, `2` Quadrado, `3` Triângulo, `4` Share, `5` PS,
 (cima, baixo, esquerda, direita), `15` Touchpad, `16` Mute (não reportado
 por Bluetooth).
 
-Os índices mudam entre USB e Bluetooth. Trocando de conexão, rode
+Os índices podem mudar entre USB e Bluetooth e entre as versões do SDL de
+Windows e Linux. Trocando de conexão ou de sistema, rode
 `python diag.py --check` e ajuste as constantes no topo de `main.py`.
 
 ## Arquivos
