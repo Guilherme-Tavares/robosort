@@ -90,7 +90,7 @@ CONVEYOR_IDLE_STOP = 3.0      # s sem caixinha a vista, apos um ciclo, ate desli
 #        para SP, a caixinha 10 vai para Sao Paulo. Sem limite de ID.
 # "mock": a tabela ROTEAMENTO abaixo, para bancada sem MySQL.
 # Nao ha volta ao mock em caso de falha da API: ver routing.py.
-ROUTE_SOURCE = "mock"
+ROUTE_SOURCE = "api"
 API_BASE_URL = "http://localhost:3000/api"
 API_TIMEOUT = 3.0
 
