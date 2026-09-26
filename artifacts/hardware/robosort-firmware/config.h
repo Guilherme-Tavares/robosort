@@ -2,8 +2,8 @@
 // Constantes de hardware e flags de compilacao. Nenhuma logica aqui.
 //
 // Limites e centros vem de artifacts/hardware/roboarm-calibration-tool; os
-// valores-guia dos cantos, de docs/calibration/GUIDE_VALUES.md. O
-// orquestrador le tudo isso do firmware ('dump', 'corners') e nao guarda
+// valores-guia da area de aquisicao, de docs/calibration/GUIDE_VALUES.md. O
+// orquestrador le tudo isso do firmware ('dump', 'area') e nao guarda
 // copia: ao ajustar, edite aqui e regrave.
 
 // ---- Flags de compilacao ----
@@ -72,18 +72,18 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   96,    82,    110,      84 };
 #define DROP_HEIGHT  96
 #define DROP_REACH   74
 
-// ---- Area de aquisicao: valores-guia por canto ----
-// Base, altura e alcance para pegar a caixinha no centro de cada celula.
-// Cantos: 0 sup-esq, 1 sup-dir, 2 inf-esq, 3 inf-dir (docs/calibration).
-// Canto 0 bench-verificado (calibration-tool); 1-3 ainda provisorios.
-#define CORNERS 4
-static const int CORNER_BASE[CORNERS]     = { 18, 40, 40, 37 };
-static const int CORNER_HEIGHT[CORNERS]   = { 22, 37, 22, 31 };
-static const int CORNER_REACH[CORNERS]    = { 62, 57, 60, 58 };
+// ---- Area de aquisicao ----
+// Base, altura e alcance para pegar a caixinha. Ha uma unica area: a matriz
+// 2x2 de cantos foi abandonada junto com a localizacao por visao, que era
+// quem interpolava entre eles. Valores aferidos na calibration-tool, que e
+// a referencia; copie de la apos cada sessao de bancada.
+#define AREA_BASE    18
+#define AREA_HEIGHT  22
+#define AREA_REACH   62
 
-// Aproximacao: altura e alcance comuns a todos os cantos, aplicados antes
-// de descer ao canto. A ordem (altura antes de alcance na ida, o inverso na
-// volta) e a protecao contra o acoplamento do pantografo.
+// Aproximacao: altura e alcance aplicados antes de descer a area. A ordem
+// (altura antes de alcance na ida, o inverso na volta) e a protecao contra o
+// acoplamento do pantografo.
 #define APPROACH_HEIGHT 39
 #define APPROACH_REACH  78
 

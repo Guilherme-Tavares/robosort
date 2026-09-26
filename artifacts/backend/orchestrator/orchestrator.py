@@ -2,15 +2,14 @@
 
 O orquestrador envia um 'mv' por junta, na ordem fixa validada em bancada,
 e espera o OK de cada um. As ordens sao as mesmas das sequencias do
-firmware (mv area, mv dest, mv home); a diferenca e que aqui o alvo da
-aquisicao pode ser interpolado pela visao, em vez de um canto fixo.
+firmware (mv area, mv dest, mv home), junta a junta.
 
 run_sorting_cycle e o ciclo desta fase: identifica a caixinha pela camera,
 decide o destino em routing.route() (zona, estado, sentido — do pedido no
-banco, ou do mock), prepara e arma o empurrador da zona correspondente, pega (canto
-fixo ou alvo interpolado, conforme ENABLE_LOCALIZATION), entrega na esteira,
-volta a HOME e espera o firmware confirmar o empurrao. Runner roda ciclos
-numa thread, no automatico ou sob demanda.
+banco, ou do mock), prepara e arma o empurrador da zona correspondente, pega
+na area de aquisicao, entrega na esteira, volta a HOME e espera o firmware
+confirmar o empurrao. Runner roda ciclos numa thread, no automatico ou sob
+demanda.
 """
 
 import threading
@@ -18,7 +17,6 @@ import time
 from queue import Empty, Queue
 
 import config
-import kinematics
 import routing
 from ev3_io import ConveyorError
 from serial_io import JOINTS, AckTimeout, ArduinoError, CommandError
@@ -119,9 +117,10 @@ class Arm:
         for j in ORDER_HOME:
             self.mv(j, home[j])
 
-    def pick_corner(self, k):
-        c = self.cfg.corners[k]
-        self.pick(c["base"], c["altura"], c["alcance"])
+    def pick_area(self):
+        """Pega na area de aquisicao, unica; a pose vem do firmware."""
+        a = self.cfg.area
+        self.pick(a["base"], a["altura"], a["alcance"])
 
     # ------------------------------------------------------------ aborto
 
@@ -203,13 +202,7 @@ def _run_from_sorting(arm, link, vision, log, cfg, pid, zone, state, direction):
     # 4. Aquisicao e entrega.
     log(f"  {config.DELAY_BEFORE_PICK:.0f} s para a caixinha estar no lugar")
     time.sleep(config.DELAY_BEFORE_PICK)
-    if config.ENABLE_LOCALIZATION:
-        _, x, y = vision.locate(pid)
-        target = kinematics.target(cfg.corners, x, y)
-        log(f"  localizada em ({x:.2f}, {y:.2f}) cm -> {target}")
-        arm.pick(**target)
-    else:
-        arm.pick_corner(config.FIXED_CORNER)
+    arm.pick_area()
     arm.deliver(before_release)
     arm.go_home()
 

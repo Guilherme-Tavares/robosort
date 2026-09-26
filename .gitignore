@@ -6,7 +6,6 @@ robosort-spec-firmware-orquestrador.md
 
 # Python cache
 __pycache__/
-
 .AGENTS.md
 
 # Binarios do teste de parser compilado (tests/test_parse.cpp)

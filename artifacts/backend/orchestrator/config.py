@@ -1,20 +1,16 @@
 """Configuracao do orquestrador.
 
 Nenhum numero do braco vive aqui. Limites, poses (home, delivery), garra
-(aberta, fechada), valores-guia dos cantos e aproximacao vem do firmware na
-conexao ('dump' e 'corners'); fonte unica: robosort-firmware/config.h.
+(aberta, fechada), area de aquisicao e aproximacao vem do firmware na
+conexao ('dump' e 'area'); fonte unica: robosort-firmware/config.h.
 """
 
 # ---- Flags ----
-ENABLE_VISION = True           # camera identifica o marcador da caixinha
-ENABLE_LOCALIZATION = False   # visao localiza a caixinha e interpola o alvo;
-                              # desligado: alvo fixo em FIXED_CORNER
+ENABLE_VISION = True          # camera identifica o marcador da caixinha
 ENABLE_CONVEYOR = True        # esteira LEGO via EV3 pelo console; desligado: a esteira
                               # sai da jogada e e assumida ligada (brick, outro PC, ou
                               # a caixinha movida a mao ate o sensor)
 ENABLE_SORTING = True         # sensor IR + empurrador (firmware com ENABLE_SORTING=1)
-
-FIXED_CORNER = 0              # unica area de aquisicao por enquanto; os demais cantos nao valem
 
 # ---- Serial ----
 BAUD = 115200
@@ -38,25 +34,10 @@ CAMERA_STREAM_PORT = 8090          # evita 5000 (proxy do front) e 5173 (vite de
 CAMERA_STREAM_FPS = 15             # taxa de publicacao; a captura para o ArUco roda no fps nativo
 CAMERA_STREAM_JPEG_QUALITY = 80
 
-# ---- Area de aquisicao (cm) ----
-# Referencial do mundo: origem no vertice superior-esquerdo da area, x para a
-# direita, y para baixo. A area e um quadrado de AREA_SIZE_CM de lado.
-AREA_SIZE_CM = 3.0
-BOX_SIZE_CM = 1.5
-CELL_SIZE_CM = AREA_SIZE_CM / 2       # grade 2x2 de celulas
-
-# Marcadores de referencia: quadrados de MARKER_SIZE_CM, bordas paralelas as
-# da area, fora dela, com MARKER_GAP_CM de folga por eixo entre o vertice
-# interno do marcador e o vertice da area (medido no gabarito a 300 DPI).
-MARKER_SIZE_CM = 2.0
-MARKER_GAP_CM = 1.0
-
-# ID do marcador de referencia -> canto da area que ele acompanha. Serve so
-# a homografia; nada a ver com os valores-guia dos cantos, que sao poses do
-# braco por celula e vem do firmware.
-REFERENCE_MARKERS = {0: "TL", 1: "TR", 2: "BL", 3: "BR"}
-
-# Produtos: qualquer ID fora dos de referencia. 0-9 reservados.
+# ---- Marcadores ----
+# Produtos comecam em 10: 0-9 ficam reservados, entre eles os marcadores de
+# referencia impressos na folha do gabarito, que nao sao mais lidos (a
+# localizacao por visao saiu) mas continuam la e nao devem virar produto.
 PRODUCT_ID_MIN = 10
 
 ARUCO_DICT = "DICT_4X4_50"

@@ -11,9 +11,13 @@ Trabalho da disciplina de Sistemas Inteligentes, IFRO Campus Ji-Paraná.
 
 ```
 artifacts/
-  backend/     aplicação servidora (visão, banco, orquestrador)
-  frontend/    painel do operador
-  hardware/    firmware do Arduino
+  backend/
+    api/         API de pedidos (Node, TypeScript, MySQL)
+    orchestrator/ console de operação: visão, braço, esteira
+    cam/         diagnóstico de câmera e ArUco
+    tests/       suíte de regressão do orquestrador
+  frontend/    painel do operador (React, Vite)
+  hardware/    firmware do Arduino e ferramenta de calibração
 assets/        utilitários gerais
 config/        regras de acesso aos dispositivos no Linux
 docs/          documentação acadêmica
@@ -24,7 +28,10 @@ requirements.txt  dependências Python de todos os módulos
 
 ## Estado
 
-Em desenvolvimento. Calibração do braço robótico em andamento.
+Em desenvolvimento. O ciclo fecha ponta a ponta: a compra no site gera o
+número do marcador, a câmera o lê, o orquestrador consulta o destino na API e
+informa de volta o estágio da separação. A caixinha é sempre pega na mesma
+área de aquisição: a localização por visão foi descartada.
 
 ## Rodar no Linux
 
@@ -88,6 +95,42 @@ A porta pode ser `/dev/ttyACM0` (Arduino oficial) ou `/dev/ttyUSB0` (alguns
 clones). Sem `--port`, os programas tentam localizar o Arduino pelo VID USB.
 Para compilar os sketches, instale também o `arduino-cli` e siga o README de
 cada firmware.
+
+## Aplicação web
+
+A API de pedidos e o painel não dependem do Linux nem da bancada montada.
+Exigem **MySQL Server** rodando em `localhost:3306` — o MySQL Workbench
+sozinho é apenas o cliente gráfico. O banco precisa existir antes da primeira
+migration, porque o TypeORM cria as tabelas, não o schema:
+
+```sql
+CREATE DATABASE robosort CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Depois, com `artifacts/backend/api/.env.development` configurado a partir de
+`.env.example`:
+
+```bash
+cd artifacts/backend/api && npm install && npm run migration:run && npm run dev
+cd artifacts/frontend  && npm install && npm run dev
+```
+
+A API sobe em `http://localhost:3000` e o painel em `http://localhost:5173`.
+Detalhes de rotas e variáveis nos READMEs de
+[api](artifacts/backend/api/README.md) e
+[frontend](artifacts/frontend/README.md).
+
+## Testes
+
+A suíte de regressão do orquestrador não toca em hardware, API ou banco:
+
+```bash
+cd artifacts/backend
+.venv/Scripts/python tests/executar_testes.py   # Windows
+.venv/bin/python tests/executar_testes.py       # Linux
+```
+
+O que cada teste cobre está em [artifacts/backend/tests/](artifacts/backend/tests/README.md).
 
 ## Licença
 

@@ -52,14 +52,11 @@ void stateLine(int j) {
   Serial.print(' '); Serial.println(Joints::delivery(j));
 }
 
-// CORNER <k> <base> <altura> <alcance>  x4, depois APPROACH <altura> <alcance>
-void cornerLines() {
-  for (int k = 0; k < CORNERS; k++) {
-    Serial.print(F("CORNER ")); Serial.print(k);
-    Serial.print(' '); Serial.print(CORNER_BASE[k]);
-    Serial.print(' '); Serial.print(CORNER_HEIGHT[k]);
-    Serial.print(' '); Serial.println(CORNER_REACH[k]);
-  }
+// AREA <base> <altura> <alcance>, depois APPROACH <altura> <alcance> e DROP
+void areaLines() {
+  Serial.print(F("AREA ")); Serial.print(AREA_BASE);
+  Serial.print(' '); Serial.print(AREA_HEIGHT);
+  Serial.print(' '); Serial.println(AREA_REACH);
   Serial.print(F("APPROACH ")); Serial.print(APPROACH_HEIGHT);
   Serial.print(' '); Serial.println(APPROACH_REACH);
   Serial.print(F("DROP ")); Serial.print(DROP_HEIGHT);
@@ -73,7 +70,7 @@ void help() {
   Serial.println(F("#   mv <j>           mostra a junta e a torna ativa"));
   Serial.println(F("#   mv home          vai a HOME: base, altura, alcance, garra"));
   Serial.println(F("#   mv dest          DELIVERY (alcance, altura, base); DROP (altura, alcance); garra abre, fecha; volta (alcance, altura)"));
-  Serial.println(F("#   mv area <0-3>    pega a caixinha no canto: base, garra abre, aproxima, desce, fecha"));
+  Serial.println(F("#   mv area          pega a caixinha na area: base, garra abre, aproxima, desce, fecha"));
   Serial.println(F("#   sel <j>          torna a junta ativa e a mostra"));
   Serial.println(F("#   + / -            move a junta ativa (garra 1 grau, demais 2)"));
   Serial.println(F("#   set <j> <ang>    declara a posicao atual (0-180); nao move, nao energiza"));
@@ -82,7 +79,7 @@ void help() {
   Serial.println(F("#   offall           solta todas (panico)"));
   Serial.println(F("#   stop             interrompe o movimento, mantem energizado"));
   Serial.println(F("#   dump / ?         STATE de todas as juntas (+ GRIPPER aberta fechada) / da ativa"));
-  Serial.println(F("#   corners          valores-guia dos cantos, aproximacao e soltura (DROP)"));
+  Serial.println(F("#   area             valores-guia da area, aproximacao e soltura (DROP)"));
   Serial.println(F("#   ping             OK"));
   Serial.println(F("#   help / h         esta ajuda"));
 #if ENABLE_SORTING
@@ -202,9 +199,9 @@ void moveDelivery() {
     { J_HEIGHT,  DROP_HEIGHT                           },
     { J_REACH,   DROP_REACH                            },
     { J_GRIPPER, GRIPPER_OPEN                          },
-    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                    },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                   },
     { J_GRIPPER, GRIPPER_CLOSED                        },
-    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                     },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                    },
     { J_GRIPPER, (uint16_t)Joints::delivery(J_GRIPPER) },
     { J_REACH,   (uint16_t)Joints::delivery(J_REACH)   },
     { J_HEIGHT,  (uint16_t)Joints::delivery(J_HEIGHT)  },
@@ -212,22 +209,22 @@ void moveDelivery() {
   run(s, 12);
 }
 
-// mv area <k>: base do canto, garra aberta, aproximacao (altura, alcance),
-// descida ao canto (altura, alcance), pausa, garra fechada, pausa. A ordem
+// mv area: base da area, garra aberta, aproximacao (altura, alcance),
+// descida a area (altura, alcance), pausa, garra fechada, pausa. A ordem
 // altura-antes-de-alcance e a protecao contra o acoplamento do pantografo.
 // A primeira pausa deixa o braco assentar antes de pegar; a segunda segura
 // o OK, e com ele o proximo comando, ate a garra ter firmado a caixinha.
-void moveArea(int k) {
+void moveArea() {
   Sequence::Step s[] = {
-    { J_BASE,    (uint16_t)CORNER_BASE[k]              },
-    { J_GRIPPER, GRIPPER_OPEN                          },
-    { J_HEIGHT,  APPROACH_HEIGHT                      },
-    { J_REACH,   APPROACH_REACH                       },
-    { J_HEIGHT,  (uint16_t)CORNER_HEIGHT[k]            },
-    { J_REACH,   (uint16_t)CORNER_REACH[k]             },
-    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS                   },
-    { J_GRIPPER, GRIPPER_CLOSED                        },
-    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS                    },
+    { J_BASE,    AREA_BASE           },
+    { J_GRIPPER, GRIPPER_OPEN        },
+    { J_HEIGHT,  APPROACH_HEIGHT     },
+    { J_REACH,   APPROACH_REACH      },
+    { J_HEIGHT,  AREA_HEIGHT         },
+    { J_REACH,   AREA_REACH          },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS },
+    { J_GRIPPER, GRIPPER_CLOSED      },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS  },
   };
   run(s, 9);
 }
@@ -277,7 +274,7 @@ void handle(char* cmd) {
   if (busy()) { err(F("ocupado")); return; }
 
   if (!strcmp(cmd, "help") || !strcmp(cmd, "h")) { help(); ok(); return; }
-  if (!strcmp(cmd, "corners")) { cornerLines(); ok(); return; }
+  if (!strcmp(cmd, "area"))    { areaLines(); ok(); return; }
   if (!strcmp(cmd, "home"))    { declarePose(false); return; }
   if (!strcmp(cmd, "dest"))    { declarePose(true);  return; }
 
@@ -320,7 +317,7 @@ void handle(char* cmd) {
     return;
   }
 
-  // mv <j> <ang> move; mv <j> mostra e torna ativa; mv home/dest/area <k>
+  // mv <j> <ang> move; mv <j> mostra e torna ativa; mv home/dest/area
   // executam as sequencias de bancada.
   if (startsWith(cmd, "mv ")) {
     char* name = skipSpaces(cmd + 3);
@@ -328,10 +325,11 @@ void handle(char* cmd) {
 
     if (!strcmp(name, "home")) { moveHome();     return; }
     if (!strcmp(name, "dest")) { moveDelivery(); return; }
+    // 'mv area 0' ainda e aceito: a area unica era o canto 0, e o habito
+    // sobrevive na memoria de quem operou a bancada.
     if (!strcmp(name, "area")) {
-      int k;
-      if (!parseInt(arg, CORNERS - 1, &k)) { err(F("canto")); return; }
-      moveArea(k);
+      if (*arg && strcmp(arg, "0")) { err(F("uso")); return; }
+      moveArea();
       return;
     }
 

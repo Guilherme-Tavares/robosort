@@ -46,15 +46,13 @@ def show_config(cfg):
         i = cfg.joints[j]
         print(f"    {j:8s} {i.min:3d}..{i.max:<3d}  home {i.home:3d}  delivery {i.delivery:3d}")
     print(f"  garra: aberta {cfg.gripper['open']} fechada {cfg.gripper['closed']}")
-    print("  cantos (base, altura, alcance):")
-    for k in sorted(cfg.corners):
-        c = cfg.corners[k]
-        print(f"    [{k}] {c['base']:3d} {c['altura']:3d} {c['alcance']:3d}")
+    a = cfg.area
+    print(f"  area de aquisicao: base {a['base']} altura {a['altura']} alcance {a['alcance']}")
     print(f"  aproximacao: altura {cfg.approach['altura']} alcance {cfg.approach['alcance']}")
     print(f"  soltura: altura {cfg.drop['altura']} alcance {cfg.drop['alcance']}")
-    flags = [f for f in ("ENABLE_VISION", "ENABLE_LOCALIZATION", "ENABLE_CONVEYOR", "ENABLE_SORTING")
+    flags = [f for f in ("ENABLE_VISION", "ENABLE_CONVEYOR", "ENABLE_SORTING")
              if getattr(config, f)]
-    print(f"  flags ativas: {', '.join(flags) or 'nenhuma'}; canto fixo {config.FIXED_CORNER}")
+    print(f"  flags ativas: {', '.join(flags) or 'nenhuma'}")
     destino = ("mock (sem banco)" if config.ROUTE_SOURCE == "mock"
                else f"API em {config.API_BASE_URL}")
     print(f"  roteamento: {destino}")

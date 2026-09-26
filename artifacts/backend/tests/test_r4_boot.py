@@ -18,9 +18,8 @@ class FakeR4:
             for s in ["STATE base 18 energizada 18 178 18 92","STATE garra 82 energizada 82 120 82 82",
                       "STATE altura 91 energizada 16 136 91 101","STATE alcance 96 energizada 36 176 96 102",
                       "GRIPPER 120 82","OK"]: self.out.put((s+"\n").encode())
-        elif cmd=="corners":
-            for s in ["CORNER 0 44 29 56","CORNER 1 40 37 57","CORNER 2 40 22 60","CORNER 3 37 31 58",
-                      "APPROACH 39 78","DROP 92 98","OK"]: self.out.put((s+"\n").encode())
+        elif cmd=="area":
+            for s in ["AREA 18 22 62","APPROACH 39 78","DROP 96 74","OK"]: self.out.put((s+"\n").encode())
         else: self.out.put(b"OK\n")
     def flush(self): pass
     def close(self): self.is_open=False

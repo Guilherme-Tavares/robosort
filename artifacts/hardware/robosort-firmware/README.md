@@ -82,7 +82,7 @@ pinos e canais ficam em `config.h` (`Z1_*` a `Z5_*`), fonte única de onde
 ## Constantes em `config.h`
 
 Tudo que se ajusta sem tocar na lógica. O orquestrador lê estes valores do
-firmware (`dump`, `corners`) e **não guarda cópia**: ao ajustar, edite aqui e
+firmware (`dump`, `area`) e **não guarda cópia**: ao ajustar, edite aqui e
 regrave.
 
 | Tabela | O que é |
@@ -93,8 +93,8 @@ regrave.
 | `ARM_HOME` | posição inicial: de onde o ciclo parte e para onde volta |
 | `ARM_DELIVERY` | posição de entrega sobre a esteira; a coluna garra é o repouso após soltar |
 | `PUSHER_*` | neutro, pré-posições e posições de empurrão por sentido; velocidade e `PUSHER_SETTLE_MS` |
-| `CORNER_BASE/HEIGHT/REACH` | valores-guia dos quatro cantos da área (`docs/calibration/GUIDE_VALUES.md`) |
-| `APPROACH_HEIGHT/REACH` | altura e alcance de aproximação, comuns aos cantos |
+| `AREA_BASE/HEIGHT/REACH` | pose para pegar a caixinha na área de aquisição, que é única (`docs/calibration/GUIDE_VALUES.md`) |
+| `APPROACH_HEIGHT/REACH` | altura e alcance de aproximação, antes de descer à área |
 | `DROP_HEIGHT/REACH` | ponto de soltura sobre a esteira: altura e alcance avançam a partir de `ARM_DELIVERY` antes de abrir a garra, e voltam depois; a base fica a de `ARM_DELIVERY` |
 | `GRIP_CLOSE_DELAY_MS` / `GRIP_HOLD_DELAY_MS` | pausas de 1 s antes e depois de a garra fechar |
 
@@ -115,7 +115,7 @@ PC → Arduino
   mv <junta>           mostra a junta (STATE) e a torna ativa
   mv home              vai a HOME: base, altura, alcance, garra
   mv dest              DELIVERY (alcance, altura, base); DROP (altura, alcance); garra abre, fecha; volta (alcance, altura)
-  mv area <0-3>        pega a caixinha no canto (ver Sequências)
+  mv area              pega a caixinha na área (ver Sequências)
   sel <junta>          torna a junta ativa e a mostra
   + / -                move a junta ativa um passo (garra 1°, demais 2°)
   set <junta> <ang>    declara a posição atual (0-180); não move, não energiza
@@ -126,7 +126,7 @@ PC → Arduino
   stop                 interrompe o movimento em curso, mantém energizado
   dump                 STATE de cada junta, depois GRIPPER
   ?                    STATE da junta ativa
-  corners              CORNER de cada canto, APPROACH e DROP
+  area                 AREA, APPROACH e DROP
   ping                 OK
   help / h             ajuda, em linhas '#'
 
@@ -142,7 +142,7 @@ Arduino → PC
   OK                   comando concluído
   ERR <motivo>         comando rejeitado ou interrompido
   STATE <junta> <ang|?> <solta|declarada|energizada> <min> <max> <home> <delivery>
-  CORNER <k> <base> <altura> <alcance>
+  AREA <base> <altura> <alcance>
   APPROACH <altura> <alcance>
   DROP <altura> <alcance>
   GRIPPER <aberta> <fechada>
@@ -157,7 +157,7 @@ Juntas: `base|b`, `garra|g`, `altura|al`, `alcance|ac`; com separação, também
 ### Contrato de respostas
 
 **Cada comando recebe exatamente uma resposta terminal, `OK` ou `ERR`, na
-ordem em que foi enviado.** Linhas `STATE`, `GRIPPER`, `CORNER`, `APPROACH`, `DROP` e `#` que
+ordem em que foi enviado.** Linhas `STATE`, `GRIPPER`, `AREA`, `APPROACH`, `DROP` e `#` que
 precedem o `OK` pertencem ao mesmo comando. É o que permite ao orquestrador
 parear resposta com comando sem heurística.
 
@@ -191,7 +191,7 @@ delas como no meio de um movimento.
 | `mv <j> <ang>`, `+`, `-` | um |
 | `mv home` | base, altura, alcance, garra → `ARM_HOME` |
 | `mv dest` | alcance, altura, base → `ARM_DELIVERY`; altura → `DROP_HEIGHT`; alcance → `DROP_REACH`; garra → `GRIPPER_OPEN`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s**; garra → `ARM_DELIVERY` (repousa); alcance → `ARM_DELIVERY`; altura → `ARM_DELIVERY` |
-| `mv area <k>` | base → `CORNER_BASE[k]`; garra → `GRIPPER_OPEN`; altura → `APPROACH_HEIGHT`; alcance → `APPROACH_REACH`; altura → `CORNER_HEIGHT[k]`; alcance → `CORNER_REACH[k]`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s** |
+| `mv area` | base → `AREA_BASE`; garra → `GRIPPER_OPEN`; altura → `APPROACH_HEIGHT`; alcance → `APPROACH_REACH`; altura → `AREA_HEIGHT`; alcance → `AREA_REACH`; **pausa 1 s**; garra → `GRIPPER_CLOSED`; **pausa 1 s** |
 
 O empurrador não passa pelo `motion` nem por sequências: tem interpolador
 próprio em `sorting`, com velocidade própria.
@@ -222,7 +222,8 @@ sempre nomeia a junta.
 | Motivo | Quando |
 |---|---|
 | `comando` | não reconhecido |
-| `junta` / `zona` / `canto` | nome ou índice inválido |
+| `junta` / `zona` | nome ou índice inválido |
+| `uso` | `mv area` com argumento diferente de `0` |
 | `ativa` | `+`, `-`, `?` ou `off` sem junta ativa |
 | `angulo` | não numérico ou fora de 0-180 |
 | `sintaxe` | `push` sem `cw`/`ccw` |
@@ -271,13 +272,13 @@ braço fica como estava.
 
 ## Uso pelo Monitor Serial
 
-Ciclo completo de bancada, validado em todos os cantos, com o braço
-fisicamente em `ARM_HOME` e uma caixinha no canto 0:
+Ciclo completo de bancada, com o braço fisicamente em `ARM_HOME` e uma
+caixinha na área de aquisição:
 
 ```
 home              declara as quatro e mostra
 mv home           energiza todas na pose inicial, sem salto
-mv area 0         base, garra abre, aproxima, desce, 1 s, fecha, 1 s
+mv area           base, garra abre, aproxima, desce, 1 s, fecha, 1 s
 mv dest           leva a esteira, avança ao ponto de soltura, abre, 1 s, fecha, 1 s, repousa, recua
 mv home           volta
 offall

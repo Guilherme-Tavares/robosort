@@ -103,12 +103,13 @@ const int ARM_DELIVERY[JOINT_COUNT] = {   96,    82,    110,     84 };
 #define DROP_HEIGHT        96
 #define DROP_REACH         74
 
-// Canto 0: unica area de aquisicao por enquanto.
-#define CORNER0_BASE       18
-#define CORNER0_HEIGHT     22
-#define CORNER0_REACH      62
+// Area de aquisicao: unica. A matriz 2x2 de cantos foi abandonada junto com
+// a localizacao por visao, que era quem interpolava entre eles.
+#define AREA_BASE          18
+#define AREA_HEIGHT        22
+#define AREA_REACH         62
 
-// Aproximacao: altura e alcance antes de descer ao canto.
+// Aproximacao: altura e alcance antes de descer a area.
 #define APPROACH_HEIGHT    39
 #define APPROACH_REACH     78
 
@@ -417,7 +418,7 @@ void seqDest() {
 }
 
 // Ciclo completo do braco ('mv re .. es .. --arm'), igual ao do orquestrador:
-// espera o operador posicionar a caixinha, pega no canto, leva a esteira e,
+// espera o operador posicionar a caixinha, pega na area, leva a esteira e,
 // imediatamente antes de a garra abrir, arma o sensor da zona; depois volta
 // a HOME. O empurrador ja esta na pre-posicao (pusherPrep) e cuida do resto
 // sozinho, em paralelo.
@@ -427,15 +428,15 @@ void seqArmCycle(int z) {
     { SEQ_WAIT,  DELAY_BEFORE_PICK_MS },   // operador posiciona a caixinha
 
     // aquisicao (mv area)
-    { J_BASE,    CORNER0_BASE         },
-    { J_GRIPPER, GRIPPER_OPEN         },
-    { J_HEIGHT,  APPROACH_HEIGHT      },
-    { J_REACH,   APPROACH_REACH       },
-    { J_HEIGHT,  CORNER0_HEIGHT       },
-    { J_REACH,   CORNER0_REACH        },
-    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS  },
-    { J_GRIPPER, GRIPPER_CLOSED       },
-    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS   },
+    { J_BASE,    AREA_BASE           },
+    { J_GRIPPER, GRIPPER_OPEN        },
+    { J_HEIGHT,  APPROACH_HEIGHT     },
+    { J_REACH,   APPROACH_REACH      },
+    { J_HEIGHT,  AREA_HEIGHT         },
+    { J_REACH,   AREA_REACH          },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS },
+    { J_GRIPPER, GRIPPER_CLOSED      },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS  },
 
     // entrega (mv dest), com o sensor armado logo antes de a garra abrir
     { J_REACH,   (uint16_t)ARM_DELIVERY[J_REACH]   },
@@ -461,19 +462,19 @@ void seqArmCycle(int z) {
   seqStart(s, 28);
 }
 
-// mv area: base do canto, garra abre, aproximacao (altura, alcance), descida
+// mv area: base da area, garra abre, aproximacao (altura, alcance), descida
 // (altura, alcance), pausa, garra fecha, pausa.
 void seqArea() {
   SeqStep s[] = {
-    { J_BASE,    CORNER0_BASE         },
-    { J_GRIPPER, GRIPPER_OPEN         },
-    { J_HEIGHT,  APPROACH_HEIGHT      },
-    { J_REACH,   APPROACH_REACH       },
-    { J_HEIGHT,  CORNER0_HEIGHT       },
-    { J_REACH,   CORNER0_REACH        },
-    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS  },
-    { J_GRIPPER, GRIPPER_CLOSED       },
-    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS   },
+    { J_BASE,    AREA_BASE           },
+    { J_GRIPPER, GRIPPER_OPEN        },
+    { J_HEIGHT,  APPROACH_HEIGHT     },
+    { J_REACH,   APPROACH_REACH      },
+    { J_HEIGHT,  AREA_HEIGHT         },
+    { J_REACH,   AREA_REACH          },
+    { SEQ_WAIT,  GRIP_CLOSE_DELAY_MS },
+    { J_GRIPPER, GRIPPER_CLOSED      },
+    { SEQ_WAIT,  GRIP_HOLD_DELAY_MS  },
   };
   seqStart(s, 9);
 }
@@ -749,14 +750,14 @@ void help() {
   Serial.println(F("  home / dest    declara as 4 juntas em HOME / DELIVERY (nao energiza)"));
   Serial.println(F("  mv home        sequencia: base, altura, alcance, garra -> HOME"));
   Serial.println(F("  mv dest        sequencia: DELIVERY, DROP, garra abre/fecha, volta"));
-  Serial.println(F("  mv area        sequencia: canto 0, aproximacao, descida, garra fecha"));
+  Serial.println(F("  mv area        sequencia: area, aproximacao, descida, garra fecha"));
   Serial.println(F("  set <j> <ang>  declara onde a junta esta AGORA (nao move)"));
   Serial.println(F("  sel <j>        torna ativa e informa o angulo atual (nao move)"));
   Serial.println(F("  mv <j> <ang>   torna ativa, energiza sem salto e vai ate <ang>"));
   Serial.println(F("  mv re <r> es <e> [--arm]"));
   Serial.println(F("                 ciclo da regiao r (1 Norte .. 5 Sul), estado e"));
   Serial.println(F("                 (1 = ccw, 2 = cw): pre-posicao, arma, empurra e volta."));
-  Serial.println(F("                 --arm inclui o braco: pega no canto 0, entrega e volta;"));
+  Serial.println(F("                 --arm inclui o braco: pega na area, entrega e volta;"));
   Serial.println(F("                 o sensor so arma quando a garra abre."));
   Serial.println(F("  mv <zona> <ang>  posiciona um empurrador (norte, nordeste, ...)"));
   Serial.println(F("  + / -          move a junta ativa (garra 1 grau, demais 2)"));

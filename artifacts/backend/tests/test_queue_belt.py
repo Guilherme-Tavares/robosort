@@ -19,8 +19,7 @@ STATE = ["STATE base 98 declarada 18 178 18 96", "STATE garra 82 declarada 82 12
          "STATE norte 0 energizada 0 180 0 0", "STATE nordeste 0 energizada 0 180 0 0",
          "STATE centro-oeste 0 energizada 0 180 0 0", "STATE sudeste 0 energizada 0 180 0 0",
          "STATE sul 0 energizada 0 180 0 0"]
-CORNERS = ["CORNER 0 18 22 62", "CORNER 1 40 37 57", "CORNER 2 40 22 60", "CORNER 3 37 31 58",
-           "APPROACH 39 78", "DROP 96 74"]
+AREA = ["AREA 18 22 62", "APPROACH 39 78", "DROP 96 74"]
 
 
 class Fake:
@@ -36,8 +35,8 @@ class Fake:
         if w == "dump":
             for s in STATE: self._say(s)
             self._say("GRIPPER 120 82"); self._say("OK")
-        elif w == "corners":
-            for s in CORNERS: self._say(s)
+        elif w == "area":
+            for s in AREA: self._say(s)
             self._say("OK")
         elif w == "home":
             for s in STATE: self._say(s)

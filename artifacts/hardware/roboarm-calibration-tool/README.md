@@ -87,7 +87,7 @@ mv <j> <ang>     torna ativa, energiza sem salto e vai suave até <ang>
 + / -            move a junta ativa (garra 1 grau, demais 2)
 mv home          sequência: base, altura, alcance, garra → HOME
 mv dest          sequência: DELIVERY, DROP, garra abre/fecha, volta a DELIVERY
-mv area          sequência: canto 0, aproximação, descida, garra fecha
+mv area          sequência: área, aproximação, descida, garra fecha
 mv re <r> es <e> [--arm]
                  ciclo de separação da região r com o sentido do estado e
 mv <zona> <ang>  posiciona um empurrador (norte, nordeste, ...)
@@ -141,7 +141,7 @@ arma o sensor e espera você passar a caixinha à mão.
 Com `--arm`, o ciclo é o do orquestrador, na mesma ordem:
 
 1. empurrador à pré-posição do sentido, 1 s para assentar
-2. 3 s para você pôr a caixinha no canto 0
+2. 3 s para você pôr a caixinha na área de aquisição
 3. aquisição (como `mv area`)
 4. entrega (como `mv dest`); **o sensor é armado imediatamente antes de a
    garra abrir**, já escutando quando a caixinha cai na esteira
@@ -159,7 +159,7 @@ partida.
 
 O bloco *poses* no topo do sketch tem **os mesmos nomes e colunas** de
 `robosort-firmware/config.h`: `ARM_HOME`, `ARM_DELIVERY`, `GRIPPER_OPEN/CLOSED`,
-`DROP_HEIGHT/REACH`, `CORNER0_*`, `APPROACH_*` e as pausas da garra. É para
+`DROP_HEIGHT/REACH`, `AREA_*`, `APPROACH_*` e as pausas da garra. É para
 copiar e colar entre os dois arquivos.
 
 O fluxo de ajuste: `home` → `mv home` → `mv area` → `mv dest` → `mv home`, as

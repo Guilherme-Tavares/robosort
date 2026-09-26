@@ -1,8 +1,8 @@
 # orchestrator
 
 Orquestrador do RoboSort: comanda o braço junta a junta pelo
-`robosort-firmware`, executa o ciclo de aquisição e, nas próximas fases,
-localiza a caixinha por visão e aciona a esteira.
+`robosort-firmware`, identifica a caixinha por visão, executa o ciclo de
+aquisição e aciona a esteira.
 
 **O PC decide, o Arduino executa.** O firmware move, lê o sensor e confirma;
 a sequência do ciclo, a decisão de destino e a visão ficam aqui.
@@ -15,19 +15,18 @@ de flags em `config.py`:
 | Flag | Padrão | Efeito |
 |---|---|---|
 | `ENABLE_VISION` | on | a câmera identifica o ID da caixinha; sem ela, só `cycle N` |
-| `ENABLE_LOCALIZATION` | **off** | a visão localiza a caixinha e o alvo é interpolado; off: alvo fixo em `FIXED_CORNER` (0) |
 | `ENABLE_CONVEYOR` | **on** | esteira LEGO pelo EV3, operada pelo console; off (ou `--assume-conveyor`): a esteira sai da jogada e é assumida ligada — pelo brick, por outro PC ou com a caixinha levada à mão |
 | `ENABLE_SORTING` | on | prepara e arma o empurrador; exige firmware com `ENABLE_SORTING=1` |
 
-A localização fica desligada até os valores-guia dos quatro cantos voltarem
-a ser confiáveis (a remontagem do braço deslocou as posições; só o canto 0
-está validado). O código existe e é testado contra o gabarito da folha.
+A área de aquisição é única: a caixinha é sempre pega na mesma pose, lida
+do firmware. A localização por visão, que interpolava entre quatro cantos,
+foi descartada — com ela saíram a homografia, os marcadores de referência
+e o `kinematics.py`.
 
 ```
 config.py         flags, geometria da área, tempos, roteamento provisório
 serial_io.py      ligação com o firmware: thread leitora, fila de DET, contrato FIFO
-vision.py         câmera, ArUco, identificação, homografia congelada, localização
-kinematics.py     interpolação bilinear dos valores-guia
+vision.py         câmera, ArUco, identificação da caixinha
 routing.py        destino da caixinha: API (banco) ou mock, por ROUTE_SOURCE
 ev3_io.py         esteira contínua pelo EV3 (ev3_dc), ou AssumedConveyor
 orchestrator.py   Arm (pick, deliver, go_home, safe_stop), run_sorting_cycle, Runner
@@ -129,7 +128,7 @@ estiver desligada).
    com `"mock"`, usa a tabela `config.ROTEAMENTO` (ver *De onde vem o destino*)
 3. `prep <zona> <sentido>` — empurrador da zona sorteada declarado e energizado na
    pré-posição, antes de o braço se mover; `PREP_SETTLE_DELAY` para assentar
-4. Espera `DELAY_BEFORE_PICK`; pega no canto 0 (ou no alvo interpolado); entrega: avança ao
+4. Espera `DELAY_BEFORE_PICK`; pega na área de aquisição; entrega: avança ao
    ponto de soltura, **`arm <zona> <sentido>` e só então abre a garra** — o sensor já
    escuta quando a caixinha cai, e antes disso nada deve passar por ele; fecha, recua; HOME
 5. Espera `PUSHED <zona>` — o firmware empurrou sozinho na detecção, segurou 1 s e voltou à
@@ -187,12 +186,12 @@ diz que o Acre é o lado horário da zona norte.
 ## De onde vêm os números
 
 **Nenhum limite, pose ou valor-guia vive aqui.** Na conexão, `serial_io`
-envia `dump` e `corners` e monta:
+envia `dump` e `area` e monta:
 
 - por junta: ângulo atual, estado, `min`, `max`, `home`, `delivery`
 - garra: ângulo de `aberta` e de `fechada` (não são os limites: qual extremo
   abre depende da montagem do horn)
-- por canto 0-3: `base`, `altura`, `alcance`
+- área de aquisição: `base`, `altura`, `alcance`
 - aproximação: `altura`, `alcance`
 
 Fonte única: `robosort-firmware/config.h`. Ajustar lá e regravar. O
@@ -231,16 +230,26 @@ Implementado em `serial_io.py`, a partir do README do firmware:
 
 ## Ciclo
 
-`Arm.pick(base, altura, alcance)`, `Arm.deliver()` e `Arm.go_home()` seguem
-exatamente as ordens de `mv area`, `mv dest` e `mv home` do firmware,
-validadas em bancada, incluindo as pausas de 1 s antes e depois de a garra
-fechar. A diferença é que o alvo de `pick` pode ser interpolado pela visão em
-vez de um canto.
+`Arm.pick_area()`, `Arm.deliver()` e `Arm.go_home()` seguem exatamente as
+ordens de `mv area`, `mv dest` e `mv home` do firmware, validadas em bancada,
+incluindo as pausas de 1 s antes e depois de a garra fechar.
 
 `Arm.safe_stop()` é o aborto: `stop`, tentar voltar a HOME, `offall`. Cada
 etapa é tentada mesmo se a anterior falhar. Um `offall` com o braço
 estendido o deixa cair; ainda assim é melhor que deixá-lo energizado sem
 supervisão.
+
+## Testes
+
+A suíte de regressão vive em [`../tests/`](../tests/README.md) e cobre
+roteamento, report de estágio, fila, esteira, conexão ao Uno R4 e o parser do
+firmware. Nada de hardware, API ou banco: tudo com dublês, então roda com a
+bancada desmontada. A partir de `artifacts/backend/`:
+
+```bash
+.venv/Scripts/python tests/executar_testes.py   # Windows
+.venv/bin/python tests/executar_testes.py       # Linux
+```
 
 ## Convenções
 

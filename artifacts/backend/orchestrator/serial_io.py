@@ -1,7 +1,7 @@
 """Ligacao serial com o robosort-firmware.
 
 Contrato do firmware: cada comando recebe exatamente uma resposta terminal,
-OK ou ERR <motivo>, na ordem de envio. Linhas STATE, CORNER, APPROACH e '#'
+OK ou ERR <motivo>, na ordem de envio. Linhas STATE, AREA, APPROACH e '#'
 que precedem o terminal pertencem ao comando. DET <zona> e PUSHED <zona> sao
 assincronas: o firmware empurra sozinho na deteccao e avisa.
 
@@ -35,7 +35,7 @@ INTERRUPTS = ("stop", "offall", "off")
 EVENTS = ("DET", "PUSHED")
 
 STATE_RE = re.compile(r"STATE ([\w-]+) (\?|\d+) (\w+) (\d+) (\d+) (\d+) (\d+)$")
-CORNER_RE = re.compile(r"CORNER (\d) (\d+) (\d+) (\d+)$")
+AREA_RE = re.compile(r"AREA (\d+) (\d+) (\d+)$")
 APPROACH_RE = re.compile(r"APPROACH (\d+) (\d+)$")
 DROP_RE = re.compile(r"DROP (\d+) (\d+)$")
 GRIPPER_RE = re.compile(r"GRIPPER (\d+) (\d+)$")
@@ -86,7 +86,7 @@ class JointInfo:
 class ArmConfig:
     joints: dict        # nome -> JointInfo
     gripper: dict       # {"open", "closed"}: angulos proprios, nao os limites
-    corners: dict       # k -> {"base", "altura", "alcance"}
+    area: dict          # {"base", "altura", "alcance"}: unica area de aquisicao
     approach: dict      # {"altura", "alcance"}
     drop: dict          # {"altura", "alcance"}: soltura sobre a esteira, apos DELIVERY
 
@@ -262,7 +262,7 @@ class Arduino:
             resp.error = line[3:].strip()
             resp.done.set()
         else:
-            resp.lines.append(line)         # STATE, CORNER, APPROACH, '#'
+            resp.lines.append(line)         # STATE, AREA, APPROACH, '#'
 
     def _fail_all(self, why):
         with self._pending_lock:
@@ -288,7 +288,7 @@ class Arduino:
 
     def command(self, line, timeout=None):
         """Envia uma linha e espera a resposta terminal. Devolve as linhas
-        intermediarias (STATE, CORNER, ...). Levanta CommandError em ERR."""
+        intermediarias (STATE, AREA, ...). Levanta CommandError em ERR."""
         if self._disconnected:
             raise Disconnected("serial desconectada")
         if self._desynced:
@@ -332,7 +332,7 @@ class Arduino:
     def home(self):                   return self.command("home")
     def dest(self):                   return self.command("dest")
     def dump(self):                   return self.command("dump")
-    def corners(self):                return self.command("corners")
+    def area(self):                   return self.command("area")
     def set(self, joint, angle):      return self.command(f"set {joint} {angle}")
     def mv(self, joint, angle):       return self.command(f"mv {joint} {angle}")
     def mv_home(self):                return self.command("mv home", config.SEQUENCE_TIMEOUT)
@@ -390,12 +390,12 @@ class Arduino:
         if gripper is None:
             raise ArduinoError("'dump' nao trouxe GRIPPER (aberta fechada)")
 
-        corners, approach, drop = {}, None, None
-        for line in self.corners():
-            m = CORNER_RE.match(line)
+        area, approach, drop = None, None, None
+        for line in self.area():
+            m = AREA_RE.match(line)
             if m:
-                k, base, altura, alcance = map(int, m.groups())
-                corners[k] = {"base": base, "altura": altura, "alcance": alcance}
+                base, altura, alcance = map(int, m.groups())
+                area = {"base": base, "altura": altura, "alcance": alcance}
                 continue
             m = APPROACH_RE.match(line)
             if m:
@@ -405,10 +405,10 @@ class Arduino:
             if m:
                 altura, alcance = map(int, m.groups())
                 drop = {"altura": altura, "alcance": alcance}
-        if sorted(corners) != [0, 1, 2, 3] or approach is None or drop is None:
-            raise ArduinoError("'corners' incompleto: esperados CORNER 0-3, APPROACH e DROP")
+        if area is None or approach is None or drop is None:
+            raise ArduinoError("'area' incompleto: esperados AREA, APPROACH e DROP")
 
-        return ArmConfig(joints=joints, gripper=gripper, corners=corners,
+        return ArmConfig(joints=joints, gripper=gripper, area=area,
                          approach=approach, drop=drop)
 
 
