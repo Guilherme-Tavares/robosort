@@ -23,7 +23,13 @@ A aplicação sobe em `http://localhost:5173`.
 
 ## Variáveis de ambiente
 
-Copie `.env.example` para `.env.local` (ou ajuste `.env.development`) e configure:
+O repositório versiona `.env.development` (o padrão do time, integrado à API)
+e `.env.example` (referência). Para mudar algo só na sua máquina, crie
+`.env.development.local`, que fica fora do repositório e tem prioridade sobre
+os dois.
+
+Não use `.env.local` para isso: no Vite o `.env.[mode]` tem prioridade **maior**
+que ele, então `.env.development` continuaria vencendo.
 
 | Variável              | Descrição                                                                 |
 | ---------------------- | -------------------------------------------------------------------------- |
@@ -56,6 +62,36 @@ Na primeira vez, o banco `robosort` precisa existir antes da migration; o
 O ciclo fecha assim: a compra gera o marcador; a câmera lê o marcador; o
 orquestrador pergunta o destino à API e informa de volta o estágio da
 separação, que é o que a tela de fila mostra.
+
+## Rodar só o front
+
+Sem API, sem banco e sem orquestrador: o mock em `src/services/mockBackend.ts`
+responde no lugar deles. Basta ligar `VITE_USE_MOCK`.
+
+Pontual, sem deixar nada para trás (PowerShell):
+
+```powershell
+$env:VITE_USE_MOCK='true'; npm run dev
+```
+
+Ou, para que fique valendo sempre nesta máquina, crie
+`.env.development.local` com uma linha:
+
+```
+VITE_USE_MOCK=true
+```
+
+Salve **sem BOM** — qualquer marca de ordem de bytes faz o Vite ignorar a
+variável, sem mensagem de erro. O VS Code grava assim por padrão. Se preferir
+pela linha de comando, `echo ... >` do PowerShell **não** serve (grava UTF-16);
+use:
+
+```powershell
+Set-Content .env.development.local 'VITE_USE_MOCK=true' -Encoding ascii
+```
+
+A tela de Fila mostra "Câmera indisponível" no lugar do vídeo, porque o stream
+vem do orquestrador. O resto das telas funciona inteiro, com os dados do mock.
 
 ## Build
 
