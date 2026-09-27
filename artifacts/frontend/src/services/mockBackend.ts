@@ -6,10 +6,11 @@
 
 import { ApiError } from './api';
 import { products } from '../mocks/products';
+import { states } from '../mocks/locations';
 import type { Product } from '../types/product';
 import type { PurchaseRequest, PurchaseResponse } from '../types/purchase';
 import type { QueueEntry, QueueProduct, QueueSnapshot } from '../types/queue';
-import type { DashboardData } from '../types/dashboard';
+import type { DashboardData, RegionName, RegionSummary } from '../types/dashboard';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,8 +25,13 @@ let nextEntryId = 100;
 // Espelha a API: o numero do marcador comeca em 10 e sobe a cada compra.
 let nextVolume = 10;
 
+// Histórico de tudo que passou pelo mock. A fila move entradas entre
+// `waiting`, `current` e `last`, então sem esta lista o dashboard perderia
+// de vista o que já foi concluído.
+const allEntries: QueueEntry[] = [];
+
 function buildEntry(product: Product, state: string, city: string): QueueEntry {
-  return {
+  const entry: QueueEntry = {
     id: nextEntryId++,
     volume: nextVolume++,
     product: toQueueProduct(product),
@@ -33,18 +39,19 @@ function buildEntry(product: Product, state: string, city: string): QueueEntry {
     city,
     status: 'Aguardando',
   };
+  allEntries.push(entry);
+  return entry;
 }
 
-let current: QueueEntry | null = buildEntry(products[0], 'RO', 'Porto Velho');
-current.status = 'Separando';
+// A fila começa vazia: nada está em separação antes de alguém comprar.
+// Antes havia pedidos pré-carregados aqui, e a tela subia já mostrando
+// itens em andamento — além de consumir os marcadores 10 a 13, fazendo a
+// primeira compra de verdade receber o 14 em vez do 10 da API.
+let current: QueueEntry | null = null;
 
 let last: QueueEntry | null = null;
 
-const waiting: QueueEntry[] = [
-  buildEntry(products[1], 'CE', 'Fortaleza'),
-  buildEntry(products[2], 'GO', 'Goiânia'),
-  buildEntry(products[3], 'SP', 'Campinas'),
-];
+const waiting: QueueEntry[] = [];
 
 // Simula o avanço do processamento do backend: a cada ~6s o item atual é
 // concluído e o próximo da fila passa a ser processado.
@@ -97,64 +104,38 @@ export async function mockGetQueue(): Promise<QueueSnapshot> {
   };
 }
 
-const dashboardFixture: DashboardData = {
-  totalItems: 90,
-  totalVolume: 90,
-  regions: [
-    {
-      name: 'Norte',
-      totalVolume: 25,
-      totalItems: 25,
-      products: [
-        { type: 'Eletrônico', volume: 10 },
-        { type: 'Alimentício', volume: 8 },
-        { type: 'Vestuário', volume: 7 },
-      ],
-    },
-    {
-      name: 'Nordeste',
-      totalVolume: 14,
-      totalItems: 14,
-      products: [
-        { type: 'Eletrônico', volume: 4 },
-        { type: 'Alimentício', volume: 6 },
-        { type: 'Vestuário', volume: 4 },
-      ],
-    },
-    {
-      name: 'Centro-Oeste',
-      totalVolume: 8,
-      totalItems: 8,
-      products: [
-        { type: 'Eletrônico', volume: 2 },
-        { type: 'Alimentício', volume: 3 },
-        { type: 'Vestuário', volume: 3 },
-      ],
-    },
-    {
-      name: 'Sudeste',
-      totalVolume: 32,
-      totalItems: 32,
-      products: [
-        { type: 'Eletrônico', volume: 14 },
-        { type: 'Alimentício', volume: 10 },
-        { type: 'Vestuário', volume: 8 },
-      ],
-    },
-    {
-      name: 'Sul',
-      totalVolume: 11,
-      totalItems: 11,
-      products: [
-        { type: 'Eletrônico', volume: 5 },
-        { type: 'Alimentício', volume: 4 },
-        { type: 'Vestuário', volume: 2 },
-      ],
-    },
-  ],
-};
+// Regiões na mesma ordem do seed da API, todas sempre presentes.
+const REGION_ORDER: RegionName[] = ['Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];
 
+const REGION_BY_UF = new Map(states.map((state) => [state.uf, state.region]));
+
+// Espelha o DashboardService da API: agrega as compras por região, somando
+// `product.volume` (quantos volumes o item ocupa), não o número do marcador.
 export async function mockGetDashboard(): Promise<DashboardData> {
   await delay(150);
-  return dashboardFixture;
+
+  const regions: RegionSummary[] = REGION_ORDER.map((name) => {
+    const entries = allEntries.filter((entry) => REGION_BY_UF.get(entry.state) === name);
+
+    const volumeByType = new Map<string, number>();
+    for (const entry of entries) {
+      const current = volumeByType.get(entry.product.type) ?? 0;
+      volumeByType.set(entry.product.type, current + entry.product.volume);
+    }
+
+    return {
+      name,
+      totalItems: entries.length,
+      totalVolume: entries.reduce((sum, entry) => sum + entry.product.volume, 0),
+      products: [...volumeByType.entries()]
+        .map(([type, volume]) => ({ type, volume }))
+        .sort((a, b) => a.type.localeCompare(b.type)),
+    };
+  });
+
+  return {
+    totalItems: allEntries.length,
+    totalVolume: allEntries.reduce((sum, entry) => sum + entry.product.volume, 0),
+    regions,
+  };
 }

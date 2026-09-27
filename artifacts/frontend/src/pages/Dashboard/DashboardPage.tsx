@@ -8,6 +8,10 @@ import type { DashboardData } from '../../types/dashboard';
 
 type LoadState = 'loading' | 'success' | 'error';
 
+// O painel agrega todas as compras, então é mais pesado que a fila: um
+// intervalo maior basta para a tela não envelhecer.
+const POLL_INTERVAL_MS = 10000;
+
 export function DashboardPage() {
   const [state, setState] = useState<LoadState>('loading');
   const [data, setData] = useState<DashboardData | null>(null);
@@ -26,27 +30,18 @@ export function DashboardPage() {
 
   useEffect(() => {
     load();
+    const id = setInterval(load, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
   }, [load]);
 
   const servedRegionsCount =
     data?.regions.filter((region) => region.totalVolume > 0).length ?? 0;
-  // Ao clicar em "Atualizar", os dados anteriores continuam visíveis até a nova resposta.
+  // Durante uma recarga os dados anteriores continuam visíveis até a nova resposta.
   const showData = (state === 'success' || state === 'loading') && data !== null;
   const isEmpty = showData && (data.regions.length === 0 || data.totalItems === 0);
 
   return (
     <div className="dashboard-page">
-      <div className="dashboard-header">
-        <h1>Dashboard</h1>
-        <button type="button" onClick={load} disabled={state === 'loading'}>
-          Atualizar
-        </button>
-      </div>
-
-      <p className="dashboard-subtitle">
-        Os indicadores abaixo são calculados a partir das compras registradas no backend.
-      </p>
-
       {state === 'loading' && !data && <p className="ui-message">Carregando indicadores...</p>}
 
       {state === 'error' && (

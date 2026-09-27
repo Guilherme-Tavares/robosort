@@ -20,6 +20,9 @@
 }
 
 .product-card-body {
+  /* Absorve a altura que o grid dá ao card, para o botão poder descer
+     até a base em vez de sobrar espaço embaixo dele. */
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -46,7 +49,9 @@
 }
 
 .product-card-button {
-  margin-top: 0.4rem;
+  /* Empurra o botão para a base: alinha todos os cards da linha,
+     independente de a descrição ocupar uma ou duas linhas. */
+  margin-top: auto;
   padding: 0.5rem;
   border: none;
   border-radius: 6px;

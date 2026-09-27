@@ -22,7 +22,6 @@ export function CameraViewer({ url }: CameraViewerProps) {
 
   return (
     <div className="camera-viewer">
-      <h2 className="camera-viewer-title">Câmera do sistema físico</h2>
       <div className="camera-viewer-frame">
         {showFallback && (
           <div className="camera-viewer-fallback">

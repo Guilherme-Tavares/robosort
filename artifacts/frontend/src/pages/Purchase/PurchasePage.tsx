@@ -77,14 +77,12 @@ export function PurchasePage() {
 
   return (
     <div className="purchase-page">
-      <h1>Compra</h1>
-
       {feedback === 'success' && (
         <p className="ui-message ui-message--success">
           Compra registrada!{' '}
           {volume !== null && (
             <>
-              Use a caixa de marcador <strong>{volume}</strong>.{' '}
+              Identificador <strong>{volume}</strong>.{' '}
             </>
           )}
           O pedido entrou na fila de separação. <Link to="/fila">Acompanhar na fila</Link>

@@ -85,7 +85,7 @@ export function PurchaseSummary({
           Cancelar
         </button>
         <button type="button" className="purchase-summary-confirm" onClick={onConfirm} disabled={!canConfirm}>
-          {submitting ? 'Enviando...' : 'Confirmar compra'}
+          {submitting ? 'Enviando...' : 'Confirmar'}
         </button>
       </div>
     </div>

@@ -16,11 +16,6 @@ export function QueuePage() {
   return (
     <div className="queue-page">
       <header className="queue-page-header">
-        <h1 className="queue-page-title">Fila de separação</h1>
-        <p className="queue-page-subtitle">
-          Acompanhe em tempo real o andamento da fila processada pelo backend e pelo sistema
-          físico de separação.
-        </p>
         {lastUpdated && (
           <span className="queue-page-updated">Atualizado às {formatTime(lastUpdated)}</span>
         )}
