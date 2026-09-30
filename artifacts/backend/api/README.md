@@ -33,6 +33,24 @@ npm run migration:run
 npm run dev
 ```
 
+### Recomecar do zero (demonstracao)
+
+```bash
+npm run db:reset
+```
+
+**Destroi o banco** (`DROP DATABASE IF EXISTS`), recria o schema vazio e roda
+as migrations. Volta ao estado de fabrica: regioes, estados e produtos do
+seed, nenhuma compra, e o proximo pedido sai de novo com o marcador **10**.
+
+Roda sozinho, sem a API no ar, e nao precisa do banco existir: serve tanto
+para limpar entre demonstracoes quanto para a primeira criacao (dispensa o
+`CREATE DATABASE` manual acima). Nao ha confirmacao nem backup; o banco
+apagado e o de `DB_NAME` no `.env.development`.
+
+`migration:run` continua nao destrutivo: aplica o que faltar e preserva as
+compras.
+
 O MySQL Workbench sozinho nao basta: ele e o cliente grafico. E preciso o
 **MySQL Server** rodando em `localhost:3306` (o instalador oficial para
 Windows traz os dois).

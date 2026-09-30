@@ -5,6 +5,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "dev": "ts-node src/main.ts",
+    "db:reset": "ts-node src/database/reset-database.ts && npm run migration:run",
     "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",
     "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert"
   },

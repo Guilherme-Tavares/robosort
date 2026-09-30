@@ -156,6 +156,10 @@ migration, porque o TypeORM cria as tabelas, não o schema:
 CREATE DATABASE robosort CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
+Para a demonstracao, `npm run db:reset` (na pasta da API) dispensa o comando
+acima: derruba o banco, recria e migra de uma vez, deixando o proximo pedido
+de novo com o marcador 10.
+
 Depois, com `artifacts/backend/api/.env.development` configurado a partir de
 `.env.example`:
 
