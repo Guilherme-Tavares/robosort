@@ -42,7 +42,7 @@
 // ------------------------------------------------------ zonas de separacao
 // Espelho de robosort-firmware/config.h (secao Separacao). Ao ajustar la,
 // ajuste aqui. Sensor FC-51: LOW = obstaculo. Cada empurrador tem
-// interpolador proprio, na velocidade do module-tester (4 ms/grau),
+// interpolador proprio, na velocidade validada em bancada (6 ms/grau),
 // independente do braco. Ciclo por zona: pre-posicao -> armado -> DET ->
 // latencia -> empurrao -> segura -> volta a pre-posicao -> assenta -> PUSHED.
 //
@@ -50,9 +50,10 @@
 // (ccw), estado 2 horario (cw). Comando: 'mv re <1-5> es <1-2>'.
 #define ZONE_COUNT         5
 #define IR_DEBOUNCE_MS     20
-#define PUSHER_STEP_DELAY  4      // ms entre subpassos
+#define PUSHER_STEP_DELAY  6      // ms entre subpassos
 #define PUSHER_SUBSTEPS    1      // subpassos por grau
-#define PUSHER_DET_DELAY_MS 400  // da deteccao ao inicio do empurrao (caixinha chega ao empurrador)
+// Do DET ao inicio do empurrao: e por zona (zoneDetDelay[], abaixo), porque
+// a distancia sensor-empurrador varia de regiao para regiao.
 #define PUSHER_HOLD_MS     1000   // segura o empurrao antes de voltar
 #define PUSHER_SETTLE_MS   200    // assentamento na volta, antes do PUSHED
 
@@ -63,6 +64,8 @@
 const char* zoneName[]    = { "norte", "nordeste", "centro-oeste", "sudeste", "sul" };
 const uint8_t zoneIrPin[] = {      11,          10,             9,        6,    2 };
 const uint8_t zoneCh[]    = {      8,          9,            10,        12,    13 };  // 9-12 A CONFERIR
+// ms entre o DET e o inicio do empurrao. So o da zona 1 foi medido.
+const unsigned long zoneDetDelay[] = { 400,    400,           400,       400,   200 };
 
 // Posicoes de cada empurrador. Medidas na zona 1; as demais herdam os mesmos
 // valores como ponto de partida, a ajustar com 'mv <zona> <ang>'.
@@ -92,15 +95,15 @@ const int knownMax[]  = {  178,   120,    136,     176 };
 // ('mv home', 'mv dest', 'mv area') e o ajuste fino (+/-), e leve para a
 // producao. 'home' e 'dest' declaram as juntas nestas poses.
 //                                     base  garra  altura  alcance
-const int ARM_HOME[JOINT_COUNT]     = {   18,    82,     91,      96 };
-const int ARM_DELIVERY[JOINT_COUNT] = {   96,    82,    110,     84 };
+const int ARM_HOME[JOINT_COUNT]     = {   42,    82,     90,      96 };
+const int ARM_DELIVERY[JOINT_COUNT] = {   92,    82,    110,     84 };
 
 // Garra: aberta e fechada sao angulos proprios, nao os limites.
 #define GRIPPER_OPEN      120
 #define GRIPPER_CLOSED     82
 
 // DROP: de DELIVERY, altura e alcance avancam ate a soltura; depois voltam.
-#define DROP_HEIGHT        96
+#define DROP_HEIGHT        92
 #define DROP_REACH         74
 
 // Area de aquisicao: unica. A matriz 2x2 de cantos foi abandonada junto com
@@ -608,7 +611,7 @@ void pusherUpdate() {
         break;
 
       case P_WAITING:
-        if (now - pPhaseAt[z] < PUSHER_DET_DELAY_MS) break;
+        if (now - pPhaseAt[z] < zoneDetDelay[z]) break;
         pusherStartMove(z, pPush[z]);
         pPhase[z] = P_PUSHING;
         break;

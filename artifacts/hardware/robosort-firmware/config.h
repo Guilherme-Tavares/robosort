@@ -61,15 +61,16 @@ static const int ARM_CENTER[ARM_JOINTS]   = {   98,    82,     91,      96 };
 // aqui, entao o braco precisa estar fisicamente nesta pose ao energizar.
 // DELIVERY: onde a caixinha e solta sobre a esteira; a garra termina em
 // repouso depois de abrir e fechar.
-// Provisoriamente iguais aos centros. Ajustar em bancada.
-static const int ARM_HOME[ARM_JOINTS]     = {   18,    82,     91,      96 };
-static const int ARM_DELIVERY[ARM_JOINTS] = {   96,    82,    110,      84 };
+// Aferidas na calibration-tool, que e a referencia; copie de la apos cada
+// sessao de bancada.
+static const int ARM_HOME[ARM_JOINTS]     = {   42,    82,     90,      96 };
+static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
 
 // DROP: de DELIVERY, altura e alcance (nesta ordem) avancam ate o ponto de
 // soltura sobre a esteira; a garra abre e fecha; alcance e altura (nesta
 // ordem) voltam a DELIVERY, e so entao o braco vai a HOME com seguranca.
 // A base nao muda: fica a de DELIVERY.
-#define DROP_HEIGHT  96
+#define DROP_HEIGHT  92
 #define DROP_REACH   74
 
 // ---- Area de aquisicao ----
@@ -108,8 +109,8 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   96,    82,    110,      84 };
 // module-tester, validada em bancada: rapida, mas suave no arranque e na
 // chegada, para empurrar a caixinha em vez de lanca-la.
 // Fluxo por caixinha: 'prep' (declara e energiza na pre-posicao do sentido
-// decidido) -> braco entrega -> 'arm' logo antes de a garra abrir -> DET -> espera
-// PUSHER_DET_DELAY_MS -> empurrao -> segura PUSHER_HOLD_MS -> volta a
+// decidido) -> braco entrega -> 'arm' logo antes de a garra abrir -> DET ->
+// espera Z<n>_DELAY -> empurrao -> segura PUSHER_HOLD_MS -> volta a
 // pre-posicao -> assenta -> PUSHED.
 // Ex.: cw parte de PRE_CW, vai a PUSH_CW e volta a PRE_CW.
 #if ENABLE_SORTING
@@ -119,9 +120,11 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   96,    82,    110,      84 };
   // confirmados; dos canais, so o da zona 1 foi conferido em bancada.
   #define ZONE_COUNT           5
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
-  #define PUSHER_STEP_DELAY_MS 4     // ms entre subpassos (module-tester)
-  #define PUSHER_SUBSTEPS      1     // subpassos por grau: 4 ms/grau, ~250 graus/s
-  #define PUSHER_DET_DELAY_MS  400   // da deteccao ao inicio do empurrao: a caixinha anda do sensor ao empurrador
+  #define PUSHER_STEP_DELAY_MS 6     // ms entre subpassos
+  #define PUSHER_SUBSTEPS      1     // subpassos por grau: 6 ms/grau, ~170 graus/s
+  // Da deteccao ao inicio do empurrao: a caixinha ainda anda do sensor ate a
+  // frente do empurrador. E por zona (Z1_DELAY..Z5_DELAY, abaixo), porque a
+  // distancia sensor-empurrador varia de regiao para regiao.
   #define PUSHER_HOLD_MS       1000  // segura o empurrao antes de voltar a pre-posicao
   #define PUSHER_SETTLE_MS     200   // assentamento na volta, antes do PUSHED
 
@@ -138,19 +141,26 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   96,    82,    110,      84 };
   // e sorting montam suas tabelas a partir daqui. Pinos e canais bench-
   // verificados no calibration-tool; so a zona 1 foi validada com o braco
   // completo (--arm), as demais so com o empurrador isolado (mv <zona> <ang>).
+  // Z*_DELAY: ms entre o DET e o inicio do empurrao naquela zona. Medidos
+  // nas zonas 1 e 5; 2-4 partem do valor da zona 1, a ajustar.
   #define Z1_NAME "norte"          // regiao 1
   #define Z1_IR    11
   #define Z1_CH    8
+  #define Z1_DELAY 400
   #define Z2_NAME "nordeste"       // regiao 2
   #define Z2_IR    10
   #define Z2_CH    9
+  #define Z2_DELAY 400
   #define Z3_NAME "centro-oeste"   // regiao 3
   #define Z3_IR    9
   #define Z3_CH   10
+  #define Z3_DELAY 400
   #define Z4_NAME "sudeste"        // regiao 4
   #define Z4_IR    6
   #define Z4_CH   12
+  #define Z4_DELAY 400
   #define Z5_NAME "sul"            // regiao 5
   #define Z5_IR    2
   #define Z5_CH   13
+  #define Z5_DELAY 200
 #endif

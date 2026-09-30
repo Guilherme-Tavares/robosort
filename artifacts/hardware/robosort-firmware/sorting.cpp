@@ -7,22 +7,23 @@
 namespace {
 
 struct Zone {
-  const char* name;
-  uint8_t     irPin;
-  int         joint;      // indice da junta do empurrador na tabela de Joints
-  int         preCw, preCcw, pushCw, pushCcw;
+  const char*   name;
+  uint8_t       irPin;
+  int           joint;    // indice da junta do empurrador na tabela de Joints
+  unsigned long detDelay; // ms do DET ao inicio do empurrao, propria da zona
+  int           preCw, preCcw, pushCw, pushCcw;
 };
 
 // Uma linha por regiao, na ordem de ZONE_NAMES; o indice da junta acompanha
 // a ordem das linhas de empurrador em joints.cpp.
-#define ZONE_ROW(NAME, PIN, N) \
-  { NAME, PIN, ARM_JOINTS + N, PUSHER_PRE_CW, PUSHER_PRE_CCW, PUSHER_PUSH_CW, PUSHER_PUSH_CCW }
+#define ZONE_ROW(NAME, PIN, DELAY, N) \
+  { NAME, PIN, ARM_JOINTS + N, DELAY, PUSHER_PRE_CW, PUSHER_PRE_CCW, PUSHER_PUSH_CW, PUSHER_PUSH_CCW }
 Zone zones[] = {
-  ZONE_ROW(Z1_NAME, Z1_IR, 0),
-  ZONE_ROW(Z2_NAME, Z2_IR, 1),
-  ZONE_ROW(Z3_NAME, Z3_IR, 2),
-  ZONE_ROW(Z4_NAME, Z4_IR, 3),
-  ZONE_ROW(Z5_NAME, Z5_IR, 4),
+  ZONE_ROW(Z1_NAME, Z1_IR, Z1_DELAY, 0),
+  ZONE_ROW(Z2_NAME, Z2_IR, Z2_DELAY, 1),
+  ZONE_ROW(Z3_NAME, Z3_IR, Z3_DELAY, 2),
+  ZONE_ROW(Z4_NAME, Z4_IR, Z4_DELAY, 3),
+  ZONE_ROW(Z5_NAME, Z5_IR, Z5_DELAY, 4),
 };
 const int NZ = sizeof(zones) / sizeof(zones[0]);
 static_assert(NZ == ZONE_COUNT, "zones[] e ZONE_COUNT divergem");
@@ -173,7 +174,7 @@ Sorting::Event Sorting::poll() {
 
     // Latencia entre DET e empurrao: a caixinha ainda anda do sensor ate a
     // frente do empurrador.
-    if (m.detectedAt && now - m.detectedAt >= PUSHER_DET_DELAY_MS) {
+    if (m.detectedAt && now - m.detectedAt >= zones[z].detDelay) {
       m.detectedAt = 0;
       if (commanded == z) commanded = -1;       // o empurrao autonomo prevalece
       start(z, armedCw[z] ? zones[z].pushCw : zones[z].pushCcw, true);

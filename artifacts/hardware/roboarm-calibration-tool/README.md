@@ -148,7 +148,7 @@ Com `--arm`, o ciclo é o do orquestrador, na mesma ordem:
 5. volta a HOME
 
 O empurrador corre em paralelo, com interpolador próprio: detecta, espera a
-caixinha chegar (`PUSHER_DET_DELAY_MS`), empurra, segura, volta à
+caixinha chegar (`zoneDetDelay[]`, própria da zona), empurra, segura, volta à
 pré-posição e imprime `PUSHED`. `stop` interrompe braço e empurradores.
 
 Posições de cada empurrador em `zonePreCw[]`, `zonePreCcw[]`, `zonePushCw[]`
@@ -212,8 +212,8 @@ mv norte 10        >> norte cw: 60 -> 120 -> 60
 ```
 
 Fases: energiza o empurrador **direto na pré-posição** do sentido (sem
-pulso ainda, um pulso só; com pulso, interpola a 4 ms/grau) → arma o sensor
-→ na detecção (`IR_DEBOUNCE_MS` de nível baixo) espera `PUSHER_DET_DELAY_MS`
+pulso ainda, um pulso só; com pulso, interpola a 6 ms/grau) → arma o sensor
+→ na detecção (`IR_DEBOUNCE_MS` de nível baixo) espera `zoneDetDelay[]` da zona
 (a caixinha anda do sensor até o empurrador) → vai à posição de empurrão →
 segura `PUSHER_HOLD_MS` → volta à pré-posição → assenta `PUSHER_SETTLE_MS`
 → `PUSHED`. O empurrador termina onde começou.
