@@ -114,16 +114,16 @@ movimento em curso para o servo errado.
 
 Cinco regiões, uma zona cada, com sensor IR e empurrador próprios:
 
-| r | Região | Sensor (pino) | Empurrador (canal PCA) |
-|---|---|---|---|
-| 1 | norte | 4 | 8 |
-| 2 | nordeste | 7 | 9 * |
-| 3 | centro-oeste | 8 | 10 * |
-| 4 | sudeste | 12 | 11 * |
-| 5 | sul | 13 | 12 * |
+| r | Região | Sensor (pino) | Empurrador (canal PCA) | Latência DET→empurrão (ms) |
+|---|---|---|---|---|
+| 1 | norte | 11 | 8 | 400 |
+| 2 | nordeste | 10 | 9 | 400 |
+| 3 | centro-oeste | 9 | 10 | 400 |
+| 4 | sudeste | 6 | 12 | 400 |
+| 5 | sul | 2 | 13 | 200 |
 
-\* canal provisório: só o da zona 1 foi conferido em bancada. Confira com
-`mv <zona> <ang>` antes de rodar um ciclo, e ajuste `zoneCh[]` no sketch.
+Tudo conferido em bancada, zona a zona. Os mesmos valores estão em
+`robosort-firmware/config.h` (`Z1_*`..`Z5_*`); ao mudar um, mude o outro.
 
 **Dois estados por região**, que definem o sentido do empurrão: **estado 1
 gira anti-horário (ccw)**, **estado 2 horário (cw)**. O firmware não precisa
@@ -152,8 +152,7 @@ caixinha chegar (`zoneDetDelay[]`, própria da zona), empurra, segura, volta à
 pré-posição e imprime `PUSHED`. `stop` interrompe braço e empurradores.
 
 Posições de cada empurrador em `zonePreCw[]`, `zonePreCcw[]`, `zonePushCw[]`
-e `zonePushCcw[]`: medidas na zona 1 e herdadas pelas demais como ponto de
-partida.
+e `zonePushCcw[]`: validadas em bancada, iguais nas cinco zonas.
 
 ## Poses: espelho da produção
 

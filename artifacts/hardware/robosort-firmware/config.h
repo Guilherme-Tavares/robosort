@@ -116,8 +116,8 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
 #if ENABLE_SORTING
   // Cinco zonas, uma por regiao: 1 Norte, 2 Nordeste, 3 Centro-Oeste,
   // 4 Sudeste, 5 Sul. Cada uma tem sensor IR (pino digital do Uno; A4/A5 sao
-  // o I2C) e empurrador (canal do PCA9685, a partir do 8). Os pinos IR estao
-  // confirmados; dos canais, so o da zona 1 foi conferido em bancada.
+  // o I2C) e empurrador (canal do PCA9685, a partir do 8). Pinos e canais
+  // conferidos em bancada, zona a zona.
   #define ZONE_COUNT           5
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
   #define PUSHER_STEP_DELAY_MS 6     // ms entre subpassos
@@ -128,8 +128,9 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
   #define PUSHER_HOLD_MS       1000  // segura o empurrao antes de voltar a pre-posicao
   #define PUSHER_SETTLE_MS     200   // assentamento na volta, antes do PUSHED
 
-  // Posicoes do empurrador, validadas em bancada na zona 1. O repouso e a
-  // pre-posicao do sentido horario. Estado 1 do produto gira ccw, estado 2 cw.
+  // Posicoes do empurrador, validadas em bancada e iguais nas cinco zonas.
+  // O repouso e a pre-posicao do sentido horario. Estado 1 do produto gira
+  // ccw, estado 2 cw.
   #define PUSHER_NEUTRAL     0      // repouso; 'rest' leva aqui (= PRE_CW)
   #define PUSHER_PRE_CW      0      // pre-posicao para empurrar em sentido horario
   #define PUSHER_PRE_CCW     180    // pre-posicao para anti-horario
@@ -138,11 +139,9 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
 
   // Zonas: nome (usado no protocolo e como nome da junta do empurrador),
   // pino do sensor IR e canal do empurrador no PCA9685. Fonte unica: joints
-  // e sorting montam suas tabelas a partir daqui. Pinos e canais bench-
-  // verificados no calibration-tool; so a zona 1 foi validada com o braco
-  // completo (--arm), as demais so com o empurrador isolado (mv <zona> <ang>).
-  // Z*_DELAY: ms entre o DET e o inicio do empurrao naquela zona. Medidos
-  // nas zonas 1 e 5; 2-4 partem do valor da zona 1, a ajustar.
+  // e sorting montam suas tabelas a partir daqui. Pinos, canais e delays
+  // validados em bancada no calibration-tool, zona a zona.
+  // Z*_DELAY: ms entre o DET e o inicio do empurrao naquela zona.
   #define Z1_NAME "norte"          // regiao 1
   #define Z1_IR    11
   #define Z1_CH    8

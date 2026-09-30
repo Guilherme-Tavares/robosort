@@ -57,18 +57,17 @@
 #define PUSHER_HOLD_MS     1000   // segura o empurrao antes de voltar
 #define PUSHER_SETTLE_MS   200    // assentamento na volta, antes do PUSHED
 
-// Regiao 1..5 -> indice 0..4. Pinos IR confirmados em bancada. Canais do
-// PCA: so o da zona 1 (Norte, canal 8) esta confirmado; os demais sao
-// PROVISORIOS, conferir antes de energizar.
+// Regiao 1..5 -> indice 0..4. Pinos IR e canais do PCA conferidos em
+// bancada, zona a zona.
 //                             1 Norte  2 Nordeste  3 C-Oeste  4 Sudeste  5 Sul
 const char* zoneName[]    = { "norte", "nordeste", "centro-oeste", "sudeste", "sul" };
 const uint8_t zoneIrPin[] = {      11,          10,             9,        6,    2 };
-const uint8_t zoneCh[]    = {      8,          9,            10,        12,    13 };  // 9-12 A CONFERIR
-// ms entre o DET e o inicio do empurrao. So o da zona 1 foi medido.
+const uint8_t zoneCh[]    = {      8,          9,            10,        12,    13 };
+// ms entre o DET e o inicio do empurrao, medidos zona a zona.
 const unsigned long zoneDetDelay[] = { 400,    400,           400,       400,   200 };
 
-// Posicoes de cada empurrador. Medidas na zona 1; as demais herdam os mesmos
-// valores como ponto de partida, a ajustar com 'mv <zona> <ang>'.
+// Posicoes de cada empurrador, validadas em bancada; iguais nas cinco zonas.
+// Ajuste com 'mv <zona> <ang>' se algum compartimento for remontado.
 //                             1    2    3    4    5
 const int zonePreCw[]     = {   0,   0,   0,   0,   0 };
 const int zonePreCcw[]    = { 180, 180, 180, 180, 180 };
