@@ -44,7 +44,7 @@ source .venv/bin/activate
 ```
 
 O procedimento completo, incluindo as permissões de Arduino e EV3, está no
-[README principal](../../../README.md#rodar-no-linux). Para instalar somente
+[README principal](../../../README.md#preparar-o-ambiente). Para instalar somente
 este módulo manualmente:
 
 ```

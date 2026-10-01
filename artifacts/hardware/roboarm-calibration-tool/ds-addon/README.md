@@ -38,7 +38,7 @@ wheel e tenta compilar do código-fonte. A API é a mesma.
 
 No Linux, o Arduino costuma aparecer como `/dev/ttyACM0` ou `/dev/ttyUSB0`.
 Instale as regras `config/udev/99-robosort.rules` conforme o
-[README principal](../../../../README.md#permissões-dos-dispositivos). O SDL
+[README principal](../../../../README.md#permissões-no-linux). O SDL
 normalmente recebe acesso ao DualSense pela sessão gráfica; se não receber,
 adicione o usuário ao grupo `input`, encerre a sessão e entre novamente.
 
