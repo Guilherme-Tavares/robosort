@@ -118,9 +118,9 @@ Cinco regiões, uma zona cada, com sensor IR e empurrador próprios:
 |---|---|---|---|---|
 | 1 | norte | 11 | 8 | 400 |
 | 2 | nordeste | 10 | 9 | 400 |
-| 3 | centro-oeste | 9 | 10 | 400 |
+| 3 | centro-oeste | 9 | 10 | 350 |
 | 4 | sudeste | 6 | 12 | 400 |
-| 5 | sul | 2 | 13 | 200 |
+| 5 | sul | 2 | 13 | 50 |
 
 Tudo conferido em bancada, zona a zona. Os mesmos valores estão em
 `robosort-firmware/config.h` (`Z1_*`..`Z5_*`); ao mudar um, mude o outro.
@@ -211,7 +211,7 @@ mv norte 10        >> norte cw: 60 -> 120 -> 60
 ```
 
 Fases: energiza o empurrador **direto na pré-posição** do sentido (sem
-pulso ainda, um pulso só; com pulso, interpola a 6 ms/grau) → arma o sensor
+pulso ainda, um pulso só; com pulso, interpola a 7 ms/grau) → arma o sensor
 → na detecção (`IR_DEBOUNCE_MS` de nível baixo) espera `zoneDetDelay[]` da zona
 (a caixinha anda do sensor até o empurrador) → vai à posição de empurrão →
 segura `PUSHER_HOLD_MS` → volta à pré-posição → assenta `PUSHER_SETTLE_MS`

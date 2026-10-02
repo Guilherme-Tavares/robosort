@@ -304,7 +304,7 @@ ao firmware empurrar sozinho na detecção — a zona Norte fica no começo da
 esteira e a caixinha chega ao sensor antes de o braço terminar de voltar a
 HOME.
 
-O movimento é *smoothstep* a **6 ms por grau** (`PUSHER_STEP_DELAY_MS`,
+O movimento é *smoothstep* a **7 ms por grau** (`PUSHER_STEP_DELAY_MS`,
 `PUSHER_SUBSTEPS`), a velocidade validada no `module-tester`: rápido o
 bastante para empurrar, suave o bastante para não lançar a caixinha. O braço
 anda a 32 ms por grau.

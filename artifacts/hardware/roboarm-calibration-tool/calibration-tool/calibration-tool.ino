@@ -42,7 +42,7 @@
 // ------------------------------------------------------ zonas de separacao
 // Espelho de robosort-firmware/config.h (secao Separacao). Ao ajustar la,
 // ajuste aqui. Sensor FC-51: LOW = obstaculo. Cada empurrador tem
-// interpolador proprio, na velocidade validada em bancada (6 ms/grau),
+// interpolador proprio, na velocidade validada em bancada (7 ms/grau),
 // independente do braco. Ciclo por zona: pre-posicao -> armado -> DET ->
 // latencia -> empurrao -> segura -> volta a pre-posicao -> assenta -> PUSHED.
 //
@@ -50,7 +50,7 @@
 // (ccw), estado 2 horario (cw). Comando: 'mv re <1-5> es <1-2>'.
 #define ZONE_COUNT         5
 #define IR_DEBOUNCE_MS     20
-#define PUSHER_STEP_DELAY  6      // ms entre subpassos
+#define PUSHER_STEP_DELAY  7      // ms entre subpassos
 #define PUSHER_SUBSTEPS    1      // subpassos por grau
 // Do DET ao inicio do empurrao: e por zona (zoneDetDelay[], abaixo), porque
 // a distancia sensor-empurrador varia de regiao para regiao.
@@ -64,7 +64,7 @@ const char* zoneName[]    = { "norte", "nordeste", "centro-oeste", "sudeste", "s
 const uint8_t zoneIrPin[] = {      11,          10,             9,        6,    2 };
 const uint8_t zoneCh[]    = {      8,          9,            10,        12,    13 };
 // ms entre o DET e o inicio do empurrao, medidos zona a zona.
-const unsigned long zoneDetDelay[] = { 400,    400,           400,       400,   200 };
+const unsigned long zoneDetDelay[] = { 400,    400,           350,       400,    50 };
 
 // Posicoes de cada empurrador, validadas em bancada; iguais nas cinco zonas.
 // Ajuste com 'mv <zona> <ang>' se algum compartimento for remontado.

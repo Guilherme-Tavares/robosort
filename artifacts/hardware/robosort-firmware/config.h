@@ -120,8 +120,8 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
   // conferidos em bancada, zona a zona.
   #define ZONE_COUNT           5
   #define IR_DEBOUNCE_MS       20    // FC-51: LOW = obstaculo
-  #define PUSHER_STEP_DELAY_MS 6     // ms entre subpassos
-  #define PUSHER_SUBSTEPS      1     // subpassos por grau: 6 ms/grau, ~170 graus/s
+  #define PUSHER_STEP_DELAY_MS 7     // ms entre subpassos
+  #define PUSHER_SUBSTEPS      1     // subpassos por grau: 7 ms/grau, ~140 graus/s
   // Da deteccao ao inicio do empurrao: a caixinha ainda anda do sensor ate a
   // frente do empurrador. E por zona (Z1_DELAY..Z5_DELAY, abaixo), porque a
   // distancia sensor-empurrador varia de regiao para regiao.
@@ -153,7 +153,7 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
   #define Z3_NAME "centro-oeste"   // regiao 3
   #define Z3_IR    9
   #define Z3_CH   10
-  #define Z3_DELAY 400
+  #define Z3_DELAY 350
   #define Z4_NAME "sudeste"        // regiao 4
   #define Z4_IR    6
   #define Z4_CH   12
@@ -161,5 +161,5 @@ static const int ARM_DELIVERY[ARM_JOINTS] = {   92,    82,    110,      84 };
   #define Z5_NAME "sul"            // regiao 5
   #define Z5_IR    2
   #define Z5_CH   13
-  #define Z5_DELAY 200
+  #define Z5_DELAY 50
 #endif
